@@ -118,8 +118,11 @@ class SymbolPicker:
                     )
                 )
 
-        # Tier 2: ATM weekly options (for low balance)
-        if balance < self.OPTIONS_THRESHOLD:
+        # Tier 2: ATM weekly options (for low balance, or as fallback)
+        if balance < self.OPTIONS_THRESHOLD or not any(
+            c.tier == 1 and balance >= c.min_capital_estimate * self.MARGIN_BUFFER
+            for c in candidates
+        ):
             option_indices = ["NIFTY", "BANKNIFTY"]
             for idx in option_indices:
                 if idx in prefs_upper or any(
@@ -158,3 +161,46 @@ class SymbolPicker:
                     )
 
         return candidates
+
+    # ------------------------------------------------------------------ #
+    # Symbol resolution
+    # ------------------------------------------------------------------ #
+    # Month codes for NSE F&O contracts
+    _MONTH_CODES: ClassVar[dict[int, str]] = {
+        1: "JAN", 2: "FEB", 3: "MAR", 4: "APR", 5: "MAY",
+        6: "JUN", 7: "JUL", 8: "AUG", 9: "SEP", 10: "OCT",
+        11: "NOV", 12: "DEC",
+    }
+
+    @staticmethod
+    def resolve(symbol: str) -> str:
+        """Map a generic symbol to an actual Dhan trading symbol.
+
+        Generic futures like 'NIFTYFUT' → 'NIFTY25JUNFUT'.
+        Generic options like 'NIFTYOPT' → kept as-is (caller enriches).
+        Concrete symbols like 'NIFTY25JUNFUT' or 'NIFTY50IDX' pass through.
+        """
+        import re
+        from datetime import datetime
+
+        sym = symbol.upper()
+
+        # Already a concrete contract — return as-is
+        if re.search(r"\d{2}[A-Z]{3}FUT", sym):
+            return sym
+        if re.search(r"\d+(CE|PE)", sym):
+            return sym
+        # Index IDX — keep as-is (used for chart/market data)
+        if sym.endswith("IDX") or sym.endswith("INDEX"):
+            return sym
+
+        # Generic futures → current month contract
+        if sym.endswith("FUT") and not re.search(r"\d{2}[A-Z]{3}", sym):
+            now = datetime.now()
+            yy = str(now.year)[-2:]
+            month = SymbolPicker._MONTH_CODES[now.month]
+            base = sym.replace("FUT", "").replace("50", "")
+            return f"{base}{yy}{month}FUT"
+
+        # Options — returned as-is (caller handles strike/expiry enrichment)
+        return sym

@@ -59,6 +59,7 @@ class Config:
     stop_at_market_close: bool
     wait_for_market_open: bool
     min_rr_ratio: float
+    auto_symbol_picker: bool
     trading_symbol: str
     event_blackout_minutes: int
     scheduled_events: list[str]
@@ -134,6 +135,7 @@ def load_config() -> Config:
             os.getenv("WAIT_FOR_MARKET_OPEN"), default=y.get("wait_for_market_open", True)
         ),
         min_rr_ratio=float(os.getenv("MIN_RR_RATIO", y.get("min_rr_ratio", 3.0))),
+        auto_symbol_picker=_bool(os.getenv("AUTO_SYMBOL_PICKER"), default=False),
         trading_symbol=trading_symbol,
         event_blackout_minutes=int(os.getenv("EVENT_BLACKOUT_MINUTES", y.get("event_blackout_minutes", 15))),
         scheduled_events=list(y.get("scheduled_events", [])),

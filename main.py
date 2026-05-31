@@ -27,6 +27,7 @@ def main() -> int:
     args = parse_args()
     cfg = load_config()
 
+    # --- Instance lock (prevent duplicate runs) ---
     instance_lock = None
     if not args.no_lock:
         from utils.instance_lock import acquire_instance_lock, release_instance_lock
@@ -41,6 +42,49 @@ def main() -> int:
             )
             return 3
 
+    # --- Auto symbol picker: select best F&O instrument based on balance ---
+    if cfg.auto_symbol_picker:
+        import logging as _log
+        import os as _os
+        _picker_log = _log.getLogger("dream_maker")
+        try:
+            from agent.symbol_picker import SymbolPicker
+            from providers.dhan import DhanProvider
+
+            broker = DhanProvider(cfg)
+            funds = broker.get_funds()
+            balance = funds.available
+
+            preferred_raw = _os.getenv("PREFERRED_SYMBOLS", "")
+            preferred = (
+                [p.strip() for p in preferred_raw.split(",") if p.strip()]
+                if preferred_raw
+                else ["SENSEX", "BANKNIFTY", "NIFTY50IDX"]
+            )
+
+            picker = SymbolPicker(
+                preferred=preferred,
+                fallback=cfg.trading_symbol,
+            )
+            candidates = picker.build_candidates(balance)
+            selected = picker.select(balance, candidates)
+            resolved = picker.resolve(selected)
+
+            if resolved != cfg.trading_symbol:
+                _picker_log.info(
+                    "Symbol picker: %s → %s (balance ₹%.0f)",
+                    cfg.trading_symbol, resolved, balance,
+                )
+                from dataclasses import replace
+                cfg = replace(cfg, trading_symbol=resolved)
+            broker.close()
+        except Exception as e:
+            _picker_log.warning(
+                "Symbol picker failed (%s) — using TRADING_SYMBOL=%s",
+                e, cfg.trading_symbol,
+            )
+
+    # --- Live mode confirmation ---
     if args.live:
         if not sys.stdin.isatty():
             print("ERROR: --live requires interactive confirmation", file=sys.stderr)

@@ -150,3 +150,36 @@ class TestBuildCandidates:
         candidates = picker.build_candidates(balance=200000.0)
         selected = picker.select(200000.0, candidates)
         assert selected == "BANKNIFTYFUT"
+
+
+# ---------- Task 3: resolve ----------
+
+class TestResolve:
+    def test_concrete_contract_passes_through(self):
+        assert SymbolPicker.resolve("NIFTY25JUNFUT") == "NIFTY25JUNFUT"
+        assert SymbolPicker.resolve("BANKNIFTY25JUNFUT") == "BANKNIFTY25JUNFUT"
+
+    def test_idx_symbol_returns_as_is(self):
+        assert SymbolPicker.resolve("NIFTY50IDX") == "NIFTY50IDX"
+        assert SymbolPicker.resolve("SENSEX") == "SENSEX"
+
+    def test_generic_fut_maps_to_current_month(self):
+        from datetime import datetime
+        result = SymbolPicker.resolve("NIFTYFUT")
+        assert "NIFTY" in result
+        assert "FUT" in result
+        # Should contain current year's 2-digit year
+        yy = str(datetime.now().year)[-2:]
+        assert yy in result, f"Expected {yy} in {result}"
+
+    def test_option_symbol_kept_as_is(self):
+        assert SymbolPicker.resolve("NIFTYOPT") == "NIFTYOPT"
+        assert SymbolPicker.resolve("BANKNIFTYOPT") == "BANKNIFTYOPT"
+
+    def test_stock_fut_resolves_to_current_month(self):
+        result = SymbolPicker.resolve("IDEAFUT")
+        from datetime import datetime
+        yy = str(datetime.now().year)[-2:]
+        assert "IDEA" in result
+        assert yy in result
+        assert "FUT" in result
