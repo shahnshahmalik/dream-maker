@@ -57,29 +57,24 @@ class TradePlanner:
 
         user_msg = json.dumps({"plan": plan.to_dict(), "technical": tech_summary})
         try:
-            from llm.openai_compat import OpenAICompatProvider
+            from llm.chat_completions import chat_completion, chat_config_for_provider
 
-            if hasattr(self.llm, "_base"):
-                import httpx
+            chat_cfg = chat_config_for_provider(self.cfg, self.llm)
+            if not chat_cfg:
+                raise RuntimeError("LLM provider does not support chat setup")
+            base_url, api_key, model = chat_cfg
+            if not api_key:
+                raise RuntimeError("LLM API key missing")
 
-                resp = httpx.post(
-                    f"{self.llm._base}/chat/completions",
-                    headers={"Authorization": f"Bearer {self.cfg.openai_api_key}"},
-                    json={
-                        "model": self.cfg.openai_model,
-                        "messages": [
-                            {"role": "system", "content": SETUP_PROMPT},
-                            {"role": "user", "content": user_msg},
-                        ],
-                        "temperature": 0.1,
-                    },
-                    timeout=60,
-                )
-                resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
-                data = json.loads(content[content.index("{") : content.rindex("}") + 1])
-            else:
-                raise RuntimeError("no API")
+            content = chat_completion(
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+                system=SETUP_PROMPT,
+                user=user_msg,
+                temperature=0.1,
+            )
+            data = json.loads(content[content.index("{") : content.rindex("}") + 1])
         except Exception as e:
             log.warning("AI setup failed (%s) — using technical markers", e)
             self._apply_default_markers(plan)

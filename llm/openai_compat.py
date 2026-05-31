@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 import logging
 
-import httpx
-
 from config import Config
-from llm.base import LLMProvider, REVIEW_SYSTEM_PROMPT, parse_review_json
+from llm.base import LLMProvider, REVIEW_SYSTEM_PROMPT, RuleBasedLLMProvider, parse_review_json
+from llm.chat_completions import chat_completion
 from models.review import AIReviewRequest, AIReviewResponse
 
 log = logging.getLogger("dream_maker.llm.openai")
@@ -24,30 +23,21 @@ class OpenAICompatProvider(LLMProvider):
 
     def review_trade(self, request: AIReviewRequest) -> AIReviewResponse:
         if not self.cfg.openai_api_key:
-            from llm.base import RuleBasedLLMProvider
             return RuleBasedLLMProvider().review_trade(request)
 
         user_msg = self._build_prompt(request)
         try:
-            resp = httpx.post(
-                f"{self._base}/chat/completions",
-                headers={"Authorization": f"Bearer {self.cfg.openai_api_key}"},
-                json={
-                    "model": self._model,
-                    "messages": [
-                        {"role": "system", "content": REVIEW_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_msg},
-                    ],
-                    "temperature": 0.2,
-                },
-                timeout=60,
+            content = chat_completion(
+                base_url=self._base,
+                api_key=self.cfg.openai_api_key,
+                model=self._model,
+                system=REVIEW_SYSTEM_PROMPT,
+                user=user_msg,
+                temperature=0.2,
             )
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"]
             return parse_review_json(content)
         except Exception as e:
             log.warning("OpenAI review failed: %s — falling back to rules", e)
-            from llm.base import RuleBasedLLMProvider
             return RuleBasedLLMProvider().review_trade(request)
 
     @staticmethod

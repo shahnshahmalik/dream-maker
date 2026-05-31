@@ -25,7 +25,8 @@ python main.py                      # continuous monitoring loop
 |----------|-------------|
 | `TRADING_SYMBOL` | **Required.** Single F&O symbol only (e.g. `NIFTY50IDX`, `NIFTY25JUNFUT`, `BANKNIFTY`) |
 | `ACTIVE_BROKER` | `dhan` only (F&O requires Dhan) |
-| `ACTIVE_LLM` | `openai_compat`, `anthropic`, or `none` |
+| `ACTIVE_LLM` | `openai_compat`, `deepseek`, `anthropic`, or `none` |
+| `DEEPSEEK_API_KEY` | DeepSeek API key (when `ACTIVE_LLM=deepseek`) |
 | `SIMULATION_MODE` | `true` uses Dhan paper orders |
 | `DHAN_ACCESS_TOKEN` | Dhan API token |
 | `GROWW_SESSION_TOKEN` | Groww session token (experimental) |
@@ -54,7 +55,7 @@ python main.py                      # continuous monitoring loop
 ## Architecture
 
 - **Broker providers** — `providers/dhan.py`, `providers/groww.py`
-- **LLM providers** — `llm/openai_compat.py`, `llm/anthropic.py`, rule-based fallback
+- **LLM providers** — `llm/openai_compat.py`, `llm/deepseek.py`, `llm/anthropic.py`, rule-based fallback
 - **Analysis pipeline** — 5-step macro → HTF/LTF → fundamental → projection
 - **Audit log** — append-only `trade_log.jsonl` in [`audit/trade_logger.py`](audit/trade_logger.py)
 

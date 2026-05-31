@@ -73,6 +73,9 @@ class Config:
     openai_model: str
     anthropic_api_key: str
     anthropic_model: str
+    deepseek_api_key: str
+    deepseek_base_url: str
+    deepseek_model: str
 
     trade_log_path: Path = field(default_factory=lambda: _ROOT / "trade_log.jsonl")
 
@@ -121,4 +124,7 @@ def load_config() -> Config:
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022"),
+        deepseek_api_key=os.getenv("DEEPSEEK_API_KEY", ""),
+        deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+        deepseek_model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
     )
