@@ -6,7 +6,10 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from notifications.service import NotificationService
 
 _SECRET_RE = re.compile(
     r"(token|key|secret|password|authorization)[\"']?\s*[:=]\s*[\"']?[\w\-./]+",
@@ -15,8 +18,9 @@ _SECRET_RE = re.compile(
 
 
 class TradeLogger:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, notifier: NotificationService | None = None):
         self.path = path
+        self.notifier = notifier
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def log(
@@ -27,16 +31,19 @@ class TradeLogger:
         reason: str,
         details: dict[str, Any] | None = None,
     ) -> None:
+        payload = details or {}
         entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "action": action,
             "symbol": symbol,
             "provider": provider,
-            "details": details or {},
+            "details": payload,
             "reason": self._redact(reason),
         }
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
+        if self.notifier:
+            self.notifier.on_audit_log(action, symbol, provider, self._redact(reason), payload)
 
     @staticmethod
     def _redact(text: str) -> str:

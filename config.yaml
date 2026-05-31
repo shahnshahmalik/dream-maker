@@ -6,6 +6,10 @@ risk_pct_per_trade: 1.5
 daily_loss_limit: 5.0
 simulation_mode: true
 trading_hours_ist: "09:15-15:15"
+market_holidays: []
+market_closed_poll_interval: 300
+stop_at_market_close: false
+wait_for_market_open: true
 min_rr_ratio: 3.0
 min_signal_strength: 0.65
 entry_zone_tolerance_pct: 0.15
@@ -22,3 +26,6 @@ trail_breakeven_buffer_pct: 0.05
 event_blackout_minutes: 15
 scheduled_events: []
 intraday_square_off: "15:15"
+telegram_enabled: false
+telegram_notify_trades: true
+telegram_notify_ai: true

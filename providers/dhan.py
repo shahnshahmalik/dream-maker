@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from config import Config
 from models.orders import (
@@ -19,25 +20,26 @@ from models.orders import (
     Quote,
 )
 from providers.base import BrokerProvider
+from providers.dhan_instruments import DhanInstrument, resolve_market_data_instrument
 from utils.http import HttpClient
 
 from utils.symbols import is_fno_eligible, normalize_symbol, underlying_base
 
 log = logging.getLogger("dream_maker.dhan")
 
+IST = ZoneInfo("Asia/Kolkata")
+
+# Dhan intraday intervals: 1, 5, 15, 25, 60 (minutes)
 TIMEFRAME_MAP = {
     "1m": "1",
     "5m": "5",
     "15m": "15",
+    "25m": "25",
     "1h": "60",
-    "4h": "240",
+    "4h": "60",
     "1d": "D",
-    "1w": "W",
+    "1w": "D",
 }
-
-
-def _is_fno_symbol(symbol: str) -> bool:
-    return is_fno_eligible(symbol)
 
 
 class DhanProvider(BrokerProvider):
@@ -47,15 +49,24 @@ class DhanProvider(BrokerProvider):
         self.cfg = cfg
         if not cfg.dhan_access_token and not cfg.simulation_mode:
             raise ValueError("DHAN_ACCESS_TOKEN required for live trading")
+        headers: dict[str, str] = {
+            "access-token": cfg.dhan_access_token,
+            "Content-Type": "application/json",
+        }
+        if cfg.dhan_client_id:
+            headers["client-id"] = cfg.dhan_client_id
+        elif not cfg.simulation_mode:
+            log.warning(
+                "DHAN_CLIENT_ID not set — market LTP/quotes may return 401; "
+                "find it in Dhan web/API dashboard"
+            )
         self._http = HttpClient(
             "https://api.dhan.co",
-            headers={
-                "access-token": cfg.dhan_access_token,
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             max_per_second=25.0,
         )
         self._instrument_cache: dict[str, dict[str, Any]] = {}
+        self._synthetic_warned: set[str] = set()
 
     def close(self) -> None:
         self._http.close()
@@ -67,7 +78,7 @@ class DhanProvider(BrokerProvider):
         configured_base = underlying_base(configured)
         return sym == configured or base == configured_base or base == configured.replace("50", "")
 
-    def _resolve_instrument(self, symbol: str) -> dict[str, Any]:
+    def _market_instrument(self, symbol: str) -> DhanInstrument | None:
         sym = normalize_symbol(symbol)
         if not self._allowed_symbol(sym):
             raise ValueError(
@@ -75,16 +86,82 @@ class DhanProvider(BrokerProvider):
             )
         if not is_fno_eligible(sym):
             raise ValueError(f"Symbol {symbol} is not F&O eligible")
+        return resolve_market_data_instrument(sym)
+
+    def _resolve_instrument(self, symbol: str) -> dict[str, Any]:
+        sym = normalize_symbol(symbol)
         if sym in self._instrument_cache:
             return self._instrument_cache[sym]
+
+        market = self._market_instrument(sym)
+        if market and market.security_id:
+            info = {
+                "symbol": sym,
+                "exchangeSegment": market.exchange_segment,
+                "securityId": market.security_id,
+                "instrument": market.instrument,
+                "lotSize": market.lot_size,
+            }
+            self._instrument_cache[sym] = info
+            return info
+
         info = {
             "symbol": sym,
             "exchangeSegment": "NSE_FNO",
             "securityId": sym,
+            "instrument": "FUTIDX" if "NIFTY" in sym or "IDX" in sym else "FUTSTK",
             "lotSize": 25 if "NIFTY" in sym else 1,
         }
         self._instrument_cache[sym] = info
         return info
+
+    @staticmethod
+    def _parse_candles(data: dict[str, Any], limit: int) -> list[OHLCV]:
+        closes = data.get("close") or []
+        if not closes:
+            return []
+        opens = data.get("open") or []
+        highs = data.get("high") or []
+        lows = data.get("low") or []
+        volumes = data.get("volume") or []
+        times = data.get("timestamp") or []
+        candles: list[OHLCV] = []
+        n = min(len(closes), limit)
+        for i in range(-n, 0):
+            idx = i if i < 0 else i
+            ts_raw = times[i] if times else None
+            if ts_raw:
+                ts = datetime.fromtimestamp(int(ts_raw), tz=IST)
+            else:
+                ts = datetime.now(IST)
+            candles.append(
+                OHLCV(
+                    timestamp=ts,
+                    open=float(opens[i]),
+                    high=float(highs[i]),
+                    low=float(lows[i]),
+                    close=float(closes[i]),
+                    volume=int(volumes[i]) if volumes and i < len(volumes) else 0,
+                )
+            )
+        return candles
+
+    @staticmethod
+    def _intraday_dates(limit: int, interval_minutes: int) -> tuple[str, str]:
+        now = datetime.now(IST)
+        to_date = now.strftime("%Y-%m-%d %H:%M:%S")
+        calendar_days = max(5, (limit * interval_minutes) // (5 * 60) + 3)
+        from_dt = now - timedelta(days=calendar_days)
+        from_date = from_dt.strftime("%Y-%m-%d %H:%M:%S")
+        return from_date, to_date
+
+    @staticmethod
+    def _daily_dates(limit: int) -> tuple[str, str]:
+        now = datetime.now(IST)
+        to_date = now.strftime("%Y-%m-%d")
+        from_dt = now - timedelta(days=max(limit + 30, 400))
+        from_date = from_dt.strftime("%Y-%m-%d")
+        return from_date, to_date
 
     def get_funds(self) -> Funds:
         try:
@@ -166,7 +243,7 @@ class DhanProvider(BrokerProvider):
     ) -> OrderResult:
         inst = self._resolve_instrument(symbol)
         payload: dict[str, Any] = {
-            "dhanClientId": "",
+            "dhanClientId": self.cfg.dhan_client_id or "",
             "transactionType": side.upper(),
             "exchangeSegment": inst["exchangeSegment"],
             "productType": "INTRADAY",
@@ -273,80 +350,106 @@ class DhanProvider(BrokerProvider):
             log.warning("cancel_order failed: %s", e)
             return self.cfg.simulation_mode
 
+    def _extract_ltp(self, data: dict[str, Any], segment: str, security_id: str) -> float:
+        seg_data = (data.get("data") or {}).get(segment) or {}
+        row = seg_data.get(security_id) or seg_data.get(str(security_id)) or {}
+        return float(row.get("last_price") or row.get("lastPrice") or 0)
+
     def get_quote(self, symbol: str) -> Quote:
         inst = self._resolve_instrument(symbol)
+        segment = inst["exchangeSegment"]
+        security_id = str(inst["securityId"])
+        if not security_id.isdigit():
+            log.warning("No numeric securityId for %s — cannot fetch LTP", symbol)
+            return self._fallback_quote(symbol)
+
         try:
+            sec_int = int(security_id)
             data = self._http.post(
                 "/v2/marketfeed/ltp",
-                json={"NSE_FNO": [inst["securityId"]]},
+                json={segment: [sec_int]},
             )
-            ltp = float(data.get("data", {}).get(inst["securityId"], {}).get("last_price", 0) or 0)
-            if ltp == 0:
+            ltp = self._extract_ltp(data, segment, security_id)
+            if ltp <= 0:
                 raise ValueError("empty quote")
             return Quote(symbol=symbol, ltp=ltp, bid=ltp, ask=ltp, volume=0)
         except Exception as e:
-            log.debug("get_quote API failed for %s: %s", symbol, e)
-            return Quote(symbol=symbol, ltp=100.0, bid=99.9, ask=100.1, volume=0)
+            log.warning("get_quote failed for %s: %s", symbol, e)
+            return self._fallback_quote(symbol)
+
+    def _fallback_quote(self, symbol: str) -> Quote:
+        base = 24500.0 if "NIFTY" in symbol.upper() else 100.0
+        return Quote(symbol=symbol, ltp=base, bid=base * 0.999, ask=base * 1.001, volume=0)
 
     def get_ohlcv(self, symbol: str, timeframe: str, limit: int) -> list[OHLCV]:
         inst = self._resolve_instrument(symbol)
+        security_id = str(inst["securityId"])
+        if not security_id.isdigit():
+            return self._synthetic_ohlcv(symbol, limit, timeframe)
+
         interval = TIMEFRAME_MAP.get(timeframe, "15")
         try:
-            data = self._http.post(
-                "/v2/charts/intraday",
-                json={
-                    "securityId": inst["securityId"],
-                    "exchangeSegment": inst["exchangeSegment"],
-                    "instrument": "FUTIDX" if "NIFTY" in inst["symbol"] or "IDX" in inst["symbol"] else "FUTSTK",
-                    "interval": interval,
-                },
-            )
-            candles: list[OHLCV] = []
-            opens = data.get("open", [])
-            highs = data.get("high", [])
-            lows = data.get("low", [])
-            closes = data.get("close", [])
-            volumes = data.get("volume", [])
-            times = data.get("timestamp", [])
-            n = min(len(closes), limit)
-            for i in range(-n, 0):
-                ts = datetime.fromtimestamp(times[i]) if times else datetime.utcnow()
-                candles.append(
-                    OHLCV(
-                        timestamp=ts,
-                        open=float(opens[i]),
-                        high=float(highs[i]),
-                        low=float(lows[i]),
-                        close=float(closes[i]),
-                        volume=int(volumes[i]) if volumes else 0,
-                    )
+            if interval == "D":
+                from_date, to_date = self._daily_dates(limit)
+                data = self._http.post(
+                    "/v2/charts/historical",
+                    json={
+                        "securityId": security_id,
+                        "exchangeSegment": inst["exchangeSegment"],
+                        "instrument": inst.get("instrument", "INDEX"),
+                        "expiryCode": 0,
+                        "oi": False,
+                        "fromDate": from_date,
+                        "toDate": to_date,
+                    },
                 )
-            return candles
+            else:
+                interval_minutes = int(interval)
+                from_date, to_date = self._intraday_dates(limit, interval_minutes)
+                data = self._http.post(
+                    "/v2/charts/intraday",
+                    json={
+                        "securityId": security_id,
+                        "exchangeSegment": inst["exchangeSegment"],
+                        "instrument": inst.get("instrument", "INDEX"),
+                        "interval": interval,
+                        "oi": False,
+                        "fromDate": from_date,
+                        "toDate": to_date,
+                    },
+                )
+            candles = self._parse_candles(data, limit)
+            if candles:
+                return candles
+            raise ValueError("empty candle response")
         except Exception as e:
-            log.debug("get_ohlcv failed for %s: %s — generating synthetic data", symbol, e)
-            return self._synthetic_ohlcv(symbol, limit)
+            if symbol not in self._synthetic_warned:
+                log.warning(
+                    "Dhan chart data unavailable for %s (%s) — using synthetic candles; "
+                    "check DHAN_CLIENT_ID and Data API access",
+                    symbol,
+                    e,
+                )
+                self._synthetic_warned.add(symbol)
+            return self._synthetic_ohlcv(symbol, limit, timeframe)
 
     @staticmethod
-    def _synthetic_ohlcv(symbol: str, limit: int) -> list[OHLCV]:
-        base = 100.0 + (hash(symbol) % 500)
+    def _synthetic_ohlcv(symbol: str, limit: int, timeframe: str) -> list[OHLCV]:
+        """Consistent synthetic series so HTF/LTF share the same price scale."""
+        base = 24500.0 if "NIFTY" in symbol.upper() else 100.0 + (hash(symbol) % 500)
+        step_minutes = 15 if timeframe in {"15m", "1h", "4h"} else 1440
         candles: list[OHLCV] = []
         price = base
-        now = datetime.now(timezone.utc)
+        now = datetime.now(IST)
         for i in range(limit):
-            drift = 0.003 if i % 2 == 0 else 0.002
+            drift = 0.0015 if i % 2 == 0 else 0.001
             o = price
             h = price * (1 + drift)
-            l = price * (1 - 0.001)
-            c = price * (1 + drift)
+            low = price * (1 - 0.0008)
+            c = price * (1 + drift * 0.5)
+            ts = now - timedelta(minutes=step_minutes * (limit - i))
             candles.append(
-                OHLCV(
-                    timestamp=now,
-                    open=o,
-                    high=h,
-                    low=l,
-                    close=c,
-                    volume=1000 + i,
-                )
+                OHLCV(timestamp=ts, open=o, high=h, low=low, close=c, volume=1000 + i)
             )
             price = c
         return candles

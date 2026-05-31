@@ -12,7 +12,7 @@ from models.trade_plan import PlanStatus, TradeDirection, TradePlan
 from providers.base import BrokerProvider
 from providers.groww import GrowwProvider
 from risk.limits import LimitsGuard
-from utils.market_hours import is_square_off_time, is_within_trading_hours
+from utils.market_hours import is_market_open, is_square_off_time
 
 log = logging.getLogger("dream_maker.executor")
 
@@ -104,7 +104,7 @@ class TradeExecutor:
             plan.status = PlanStatus.INVALIDATED
             return plan
 
-        if not is_within_trading_hours(self.cfg.trading_hours_ist):
+        if not is_market_open(self.cfg.trading_hours_ist, holidays=self.cfg.market_holidays):
             log.info("Outside trading hours — skipping %s", plan.symbol)
             return plan
 

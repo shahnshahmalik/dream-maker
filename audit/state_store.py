@@ -72,16 +72,25 @@ class StateStore:
             log.warning("Could not reconstruct plan from trade log: %s", e)
             return None
 
-    def write_heartbeat(self, *, loop_count: int, active_plans: int, status: str = "running") -> None:
+    def write_heartbeat(
+        self,
+        *,
+        loop_count: int,
+        active_plans: int,
+        status: str = "running",
+        market: dict[str, object] | None = None,
+    ) -> None:
         from datetime import datetime, timezone
 
-        payload = {
+        payload: dict[str, object] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "status": status,
             "loop_count": loop_count,
             "active_plans": active_plans,
             "pid": __import__("os").getpid(),
         }
+        if market:
+            payload["market"] = market
         self.heartbeat_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     def is_stale(self, max_age_seconds: int = 180) -> bool:

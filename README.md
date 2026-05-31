@@ -13,7 +13,7 @@ cp .env.example .env
 
 python main.py --scan-only --once   # analysis only, one cycle
 python main.py --once               # simulation mode, one cycle
-python main.py                      # continuous monitoring loop
+python main.py                      # 24x7 daemon — trades 09:15–15:15 IST, pauses when closed
 ```
 
 ## Configuration
@@ -29,6 +29,7 @@ python main.py                      # continuous monitoring loop
 | `DEEPSEEK_API_KEY` | DeepSeek API key (when `ACTIVE_LLM=deepseek`) |
 | `SIMULATION_MODE` | `true` uses Dhan paper orders |
 | `DHAN_ACCESS_TOKEN` | Dhan API token |
+| `DHAN_CLIENT_ID` | Dhan client ID (required for LTP/market feed APIs) |
 | `GROWW_SESSION_TOKEN` | Groww session token (experimental) |
 
 ## Trade flow
@@ -51,6 +52,35 @@ python main.py                      # continuous monitoring loop
 | `AI_REVIEW_COOLDOWN_MIN` | 30 | Min minutes between AI position reviews |
 | `AI_ANALYSIS_COOLDOWN_MIN` | 60 | Min minutes between AI setup calls |
 | `ENTRY_ZONE_TOLERANCE_PCT` | 0.15 | Entry marker band around target price |
+| `TRADING_HOURS_IST` | 09:15-15:15 | NSE session window (IST) |
+| `MARKET_CLOSED_POLL_INTERVAL` | 300 | Heartbeat interval while trading is paused (seconds) |
+| `MARKET_HOLIDAYS` | (empty) | Comma-separated `YYYY-MM-DD` NSE holidays |
+| `STOP_AT_MARKET_CLOSE` | false | Exit the process at session end (optional) |
+| `WAIT_FOR_MARKET_OPEN` | true | Wait for open when started early or on weekends |
+
+### 24x7 schedule (default)
+
+The process **keeps running** around the clock. **Trading** only happens during NSE hours (default 09:15–15:15 IST):
+
+1. **Closed** (weekend, holiday, before/after session) — heartbeat only, no scans or orders
+2. **Open** — full scan → entry → monitor loop
+3. **At session end** — square-off, cancel pending plans, then pause until next open
+
+Set `STOP_AT_MARKET_CLOSE=true` only if you want the process to exit after 15:15 instead of idling overnight.
+
+### Telegram alerts
+
+Add to `.env`:
+
+```env
+TELEGRAM_BOT_TOKEN=123456:ABC...   # from @BotFather
+TELEGRAM_CHAT_ID=your_chat_id      # from @userinfobot or getUpdates
+TELEGRAM_ENABLED=true              # auto-on when token + chat id are set
+TELEGRAM_NOTIFY_TRADES=true        # entries, closes, trail updates
+TELEGRAM_NOTIFY_AI=true            # AI levels, pauses, position insights
+```
+
+You will receive messages for bracket entries, closes, trail updates, AI level setup, and AI position reviews.
 
 ## Architecture
 

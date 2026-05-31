@@ -35,6 +35,40 @@ class TradePlanner:
         self.trade_logger = trade_logger
         self._last_setup_at: datetime | None = None
 
+    @staticmethod
+    def _log_levels(
+        heading: str,
+        plan: TradePlan,
+        *,
+        insight: str,
+        provider: str,
+    ) -> None:
+        entry_lo = plan.entry_price_low if plan.entry_price_low is not None else plan.entry_target()
+        entry_hi = plan.entry_price_high if plan.entry_price_high is not None else plan.entry_target()
+        log.info(
+            "%s [%s] %s\n"
+            "  Insight : %s\n"
+            "  Entry   : %.2f – %.2f\n"
+            "  SL      : %.2f (%s)\n"
+            "  TP1     : %.2f (%.0f%% exit)\n"
+            "  TP2     : %.2f (%.0f%% exit)\n"
+            "  R:R     : 1:%.2f | Signal %.2f",
+            heading,
+            provider,
+            plan.symbol,
+            insight,
+            entry_lo,
+            entry_hi,
+            plan.stop_loss,
+            plan.stop_loss_reason,
+            plan.take_profit_1,
+            plan.tp1_exit_pct,
+            plan.take_profit_2,
+            plan.tp2_exit_pct,
+            plan.rr_ratio,
+            plan.signal_strength,
+        )
+
     def can_run_ai_setup(self) -> bool:
         if self._last_setup_at is None:
             return True
@@ -45,14 +79,27 @@ class TradePlanner:
         if plan.ai_setup_done:
             return plan
         if not self.can_run_ai_setup():
-            log.info("AI setup on cooldown — using technical markers only")
+            log.info("AI setup on cooldown — using technical markers only for %s", plan.symbol)
             self._apply_default_markers(plan)
             plan.ai_setup_done = True
+            self._log_levels(
+                "Technical levels (AI cooldown)",
+                plan,
+                insight=plan.rationale,
+                provider="rules",
+            )
             return plan
 
         if isinstance(self.llm, RuleBasedLLMProvider):
+            log.info("AI disabled — applying technical levels for %s", plan.symbol)
             self._apply_default_markers(plan)
             plan.ai_setup_done = True
+            self._log_levels(
+                "Technical levels",
+                plan,
+                insight=plan.rationale,
+                provider=self.llm.name,
+            )
             return plan
 
         user_msg = json.dumps({"plan": plan.to_dict(), "technical": tech_summary})
@@ -66,6 +113,12 @@ class TradePlanner:
             if not api_key:
                 raise RuntimeError("LLM API key missing")
 
+            log.info(
+                "AI setup request (%s/%s) for %s — refining entry/SL/TP markers",
+                self.llm.name,
+                model,
+                plan.symbol,
+            )
             content = chat_completion(
                 base_url=base_url,
                 api_key=api_key,
@@ -76,15 +129,28 @@ class TradePlanner:
             )
             data = json.loads(content[content.index("{") : content.rindex("}") + 1])
         except Exception as e:
-            log.warning("AI setup failed (%s) — using technical markers", e)
+            log.warning("AI setup failed (%s) — using technical markers for %s", e, plan.symbol)
             self._apply_default_markers(plan)
             plan.ai_setup_done = True
+            self._log_levels(
+                "Technical levels (AI fallback)",
+                plan,
+                insight=plan.rationale,
+                provider="rules",
+            )
             return plan
 
         self._last_setup_at = datetime.now(timezone.utc)
         if not data.get("approve", False):
+            reason = str(data.get("reason", "AI rejected setup"))
             plan.status = PlanStatus.PAUSED
-            plan.rationale = str(data.get("reason", "AI rejected setup"))
+            plan.rationale = reason
+            log.info(
+                "AI rejected setup [%s] %s — %s",
+                self.llm.name,
+                plan.symbol,
+                reason,
+            )
             self.trade_logger.log(
                 "AI_REVIEW", plan.symbol, self.llm.name, plan.rationale, {"phase": "setup", "approved": False}
             )
@@ -102,6 +168,14 @@ class TradePlanner:
         plan.rr_ratio = tp_dist / sl_dist if sl_dist else plan.rr_ratio
         plan.ai_setup_done = True
         self._apply_default_markers(plan, overwrite=False)
+        insight = str(data.get("reason", "AI markers applied"))
+        plan.rationale = f"{plan.rationale}; AI: {insight}"
+        self._log_levels(
+            "AI levels approved",
+            plan,
+            insight=insight,
+            provider=self.llm.name,
+        )
         self.trade_logger.log(
             "AI_REVIEW",
             plan.symbol,

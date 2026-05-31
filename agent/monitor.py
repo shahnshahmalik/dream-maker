@@ -98,9 +98,19 @@ class PositionMonitor:
             return
 
         if not self._ai_cooldown_elapsed(plan):
-            log.info("Divergence detected but AI review on cooldown — holding")
+            log.info(
+                "Divergence on %s (%s) — AI review on cooldown, holding",
+                plan.symbol,
+                "; ".join(divergence_reasons),
+            )
             return
 
+        log.info(
+            "AI review request [%s] for %s — divergence: %s",
+            self.llm.name,
+            plan.symbol,
+            "; ".join(divergence_reasons),
+        )
         request = AIReviewRequest(
             symbol=plan.symbol,
             direction=plan.direction.value,
@@ -115,6 +125,19 @@ class PositionMonitor:
         )
         response = self.llm.review_trade(request)
         plan.last_ai_review_at = datetime.now(timezone.utc)
+        extra = ""
+        if response.new_stop_loss is not None:
+            extra = f" | new SL={response.new_stop_loss:.2f}"
+        elif response.partial_exit_pct is not None:
+            extra = f" | partial exit={response.partial_exit_pct:.0f}%"
+        log.info(
+            "AI insight [%s] %s — %s: %s%s",
+            self.llm.name,
+            plan.symbol,
+            response.decision.value,
+            response.reason,
+            extra,
+        )
         self.trade_logger.log(
             "AI_REVIEW", plan.symbol, self.llm.name,
             response.reason,
@@ -130,19 +153,29 @@ class PositionMonitor:
 
     def _execute_review(self, plan: TradePlan, decision: ReviewDecision, response) -> None:
         if decision == ReviewDecision.HOLD:
+            log.info("AI action [%s] %s — no change (HOLD)", self.llm.name, plan.symbol)
             return
         if decision == ReviewDecision.TIGHTEN_SL:
             if response.new_stop_loss:
+                log.info(
+                    "AI action [%s] %s — tightening SL to %.2f",
+                    self.llm.name,
+                    plan.symbol,
+                    response.new_stop_loss,
+                )
                 if plan.sl_order_id:
                     self.broker.modify_order(plan.sl_order_id, sl=response.new_stop_loss)
                 plan.stop_loss = response.new_stop_loss
             else:
+                log.info("AI action [%s] %s — moving SL to breakeven", self.llm.name, plan.symbol)
                 self.executor.modify_sl_breakeven(plan)
             return
         if decision == ReviewDecision.PARTIAL_EXIT:
             pct = response.partial_exit_pct or 50.0
+            log.info("AI action [%s] %s — partial exit %.0f%%", self.llm.name, plan.symbol, pct)
             self.executor.partial_exit(plan, pct)
             return
         if decision == ReviewDecision.CLOSE:
+            log.info("AI action [%s] %s — closing position", self.llm.name, plan.symbol)
             self.trailing.unregister(plan.plan_id)
             self.executor.close_plan(plan, reason=response.reason)

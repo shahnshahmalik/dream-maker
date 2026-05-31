@@ -16,10 +16,17 @@ from audit.state_store import StateStore
 from config import Config
 from llm.factory import get_llm
 from audit.trade_logger import TradeLogger
+from notifications.service import NotificationService
 from models.trade_plan import EntryType, PlanStatus, TradeDirection, TradePlan
 from providers.factory import get_broker
 from risk.limits import LimitsGuard
 from risk.manager import RiskManager
+from utils.market_hours import (
+    MarketSession,
+    compute_idle_sleep_seconds,
+    format_next_open,
+    get_market_session,
+)
 from utils.symbols import normalize_symbol
 
 log = logging.getLogger("dream_maker.engine")
@@ -31,8 +38,9 @@ class TradingEngine:
         self.scan_only = scan_only
         self._stop = False
         self._loop_count = 0
+        self._last_session_reason: str | None = None
 
-        self.trade_logger = TradeLogger(cfg.trade_log_path)
+        self.trade_logger = TradeLogger(cfg.trade_log_path, notifier=NotificationService(cfg))
         self.state_store = StateStore(cfg.state_dir, cfg.trade_log_path)
         self.broker = get_broker(cfg)
         self.llm = get_llm(cfg)
@@ -134,14 +142,133 @@ class TradingEngine:
             for p in self.plans
         )
 
-    def run_once(self) -> None:
+    def _session(self) -> MarketSession:
+        return get_market_session(
+            self.cfg.trading_hours_ist,
+            holidays=self.cfg.market_holidays,
+        )
+
+    def _market_payload(self, session: MarketSession) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "is_open": session.is_open,
+            "reason": session.reason,
+            "seconds_until_open": session.seconds_until_open,
+        }
+        if session.next_open is not None:
+            payload["next_open"] = session.next_open.isoformat()
+        return payload
+
+    def _log_session_change(self, session: MarketSession) -> None:
+        if session.reason == self._last_session_reason:
+            return
+        if session.is_open:
+            log.info("Market open — resuming trading")
+        elif self.cfg.stop_at_market_close and session.reason == "after_close":
+            log.info(
+                "Market session ended — stopping process (next open %s)",
+                format_next_open(session),
+            )
+        elif self.cfg.stop_at_market_close and not self.cfg.wait_for_market_open:
+            log.info("Market closed (%s) — stopping process", session.reason)
+        else:
+            log.info(
+                "Market closed (%s) — trading paused until %s (~%s)",
+                session.reason,
+                format_next_open(session),
+                self._format_duration(session.seconds_until_open),
+            )
+        self._last_session_reason = session.reason
+
+    def _should_stop_engine(self, session: MarketSession) -> bool:
+        if session.is_open:
+            return False
+        if not self.cfg.stop_at_market_close:
+            return False
+        if session.reason == "after_close":
+            return True
+        if self.cfg.wait_for_market_open and session.reason in {"before_open", "weekend", "holiday"}:
+            return False
+        return True
+
+    def _end_session_cleanup(self, session: MarketSession) -> None:
+        if not self.scan_only:
+            self.executor.square_off_intraday(self.plans)
+        cancelled = 0
+        for plan in self.plans:
+            if plan.status in {PlanStatus.WAITING_ENTRY, PlanStatus.PENDING}:
+                plan.status = PlanStatus.INVALIDATED
+                cancelled += 1
+                log.info("Cancelled pending plan %s — market session ended", plan.symbol)
+        if cancelled:
+            self.trade_logger.log(
+                "PLAN",
+                self.cfg.trading_symbol,
+                self.broker.name,
+                f"Cancelled {cancelled} pending plan(s) at session end",
+                {"reason": session.reason},
+            )
+        self.state_store.save_plans(self.plans)
+
+    @staticmethod
+    def _format_duration(seconds: int) -> str:
+        if seconds < 60:
+            return f"{seconds}s"
+        minutes, secs = divmod(seconds, 60)
+        if minutes < 60:
+            return f"{minutes}m {secs}s"
+        hours, minutes = divmod(minutes, 60)
+        if hours < 24:
+            return f"{hours}h {minutes}m"
+        days, hours = divmod(hours, 24)
+        return f"{days}d {hours}h"
+
+    def _write_heartbeat(self, session: MarketSession) -> None:
+        active_count = sum(1 for p in self.plans if p.status == PlanStatus.ACTIVE)
+        self.state_store.write_heartbeat(
+            loop_count=self._loop_count,
+            active_plans=active_count,
+            market=self._market_payload(session),
+        )
+
+    def _idle_once(self, session: MarketSession) -> bool:
+        """Idle heartbeat when market is closed. Returns False when the engine should stop."""
+        self._loop_count += 1
+        self._log_session_change(session)
+        self._write_heartbeat(session)
+        self.trade_logger.log(
+            "MONITOR",
+            "SYSTEM",
+            self.broker.name,
+            f"Trading paused ({session.reason})",
+            {
+                "loop": self._loop_count,
+                "next_open": format_next_open(session),
+                "seconds_until_open": session.seconds_until_open,
+                "stop_at_close": self.cfg.stop_at_market_close,
+            },
+        )
+
+        if session.reason == "after_close":
+            self._end_session_cleanup(session)
+
+        return not self._should_stop_engine(session)
+
+    def run_once(self) -> bool:
+        """Run one engine cycle. Returns False when the daemon should exit."""
+        session = self._session()
+        if not session.is_open:
+            return self._idle_once(session)
+
+        if self._last_session_reason != "open":
+            self._log_session_change(session)
+
         self._loop_count += 1
         active_count = sum(1 for p in self.plans if p.status == PlanStatus.ACTIVE)
-        self.state_store.write_heartbeat(loop_count=self._loop_count, active_plans=active_count)
+        self._write_heartbeat(session)
         self.trade_logger.log(
             "MONITOR", "SYSTEM", self.broker.name,
             "Heartbeat",
-            {"loop": self._loop_count, "active_plans": active_count},
+            {"loop": self._loop_count, "active_plans": active_count, "market": "open"},
         )
 
         if not self._has_open_workflow() and not self.scan_only:
@@ -177,29 +304,54 @@ class TradingEngine:
 
         self.state_store.save_plans(self.plans)
 
+        session = self._session()
+        if not session.is_open and session.reason == "after_close":
+            return self._idle_once(session)
+
+        return True
+
     def run(self) -> None:
         self.bootstrap()
         interval = self.cfg.monitor_interval
-        log.info("Entering main loop (interval=%ss, scan_only=%s)", interval, self.scan_only)
+        log.info(
+            "Entering 24x7 loop (trade interval=%ss, idle poll=%ss, scan_only=%s)",
+            interval,
+            self.cfg.market_closed_poll_interval,
+            self.scan_only,
+        )
 
         while not self._stop:
             try:
-                self.run_once()
+                should_continue = self.run_once()
             except Exception as e:
                 log.exception("Loop error: %s", e)
                 if self.limits.record_api_error():
                     log.error("Trading halted: %s", self.limits.state.halt_reason)
                     break
+                should_continue = True
             else:
                 self.limits.record_api_success()
 
-            for _ in range(interval):
+            if not should_continue:
+                log.info("Engine stopping — market session ended")
+                break
+
+            session = self._session()
+            sleep_for = compute_idle_sleep_seconds(
+                session,
+                monitor_interval=interval,
+                closed_poll_interval=self.cfg.market_closed_poll_interval,
+            )
+            for _ in range(sleep_for):
                 if self._stop:
                     break
                 time.sleep(1)
 
         self.state_store.write_heartbeat(
-            loop_count=self._loop_count, active_plans=0, status="stopped"
+            loop_count=self._loop_count,
+            active_plans=0,
+            status="stopped",
+            market=self._market_payload(self._session()),
         )
         self.broker.close()
         log.info("Engine stopped cleanly.")
@@ -215,3 +367,4 @@ def setup_logging() -> None:
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
         datefmt="%H:%M:%S",
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)

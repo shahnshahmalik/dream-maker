@@ -20,6 +20,12 @@ def _bool(v: str | None, default: bool = False) -> bool:
     return v.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _parse_csv(env_val: str | None, default: list[str]) -> list[str]:
+    if env_val is None:
+        return list(default)
+    return [part.strip() for part in env_val.split(",") if part.strip()]
+
+
 def _load_yaml() -> dict:
     path = _ROOT / "config.yaml"
     if not path.exists():
@@ -48,6 +54,10 @@ class Config:
     daily_loss_limit: float
     simulation_mode: bool
     trading_hours_ist: str
+    market_holidays: list[str]
+    market_closed_poll_interval: int
+    stop_at_market_close: bool
+    wait_for_market_open: bool
     min_rr_ratio: float
     trading_symbol: str
     event_blackout_minutes: int
@@ -67,6 +77,7 @@ class Config:
     trail_breakeven_buffer_pct: float
 
     dhan_access_token: str
+    dhan_client_id: str
     groww_session_token: str
     openai_api_key: str
     openai_base_url: str
@@ -76,6 +87,12 @@ class Config:
     deepseek_api_key: str
     deepseek_base_url: str
     deepseek_model: str
+
+    telegram_enabled: bool
+    telegram_bot_token: str
+    telegram_chat_id: str
+    telegram_notify_trades: bool
+    telegram_notify_ai: bool
 
     trade_log_path: Path = field(default_factory=lambda: _ROOT / "trade_log.jsonl")
 
@@ -98,6 +115,16 @@ def load_config() -> Config:
         daily_loss_limit=float(os.getenv("DAILY_LOSS_LIMIT", y.get("daily_loss_limit", 5.0))),
         simulation_mode=_bool(os.getenv("SIMULATION_MODE"), default=y.get("simulation_mode", True)),
         trading_hours_ist=os.getenv("TRADING_HOURS_IST", y.get("trading_hours_ist", "09:15-15:15")),
+        market_holidays=_parse_csv(os.getenv("MARKET_HOLIDAYS"), y.get("market_holidays", [])),
+        market_closed_poll_interval=int(
+            os.getenv("MARKET_CLOSED_POLL_INTERVAL", y.get("market_closed_poll_interval", 300))
+        ),
+        stop_at_market_close=_bool(
+            os.getenv("STOP_AT_MARKET_CLOSE"), default=y.get("stop_at_market_close", False)
+        ),
+        wait_for_market_open=_bool(
+            os.getenv("WAIT_FOR_MARKET_OPEN"), default=y.get("wait_for_market_open", True)
+        ),
         min_rr_ratio=float(os.getenv("MIN_RR_RATIO", y.get("min_rr_ratio", 3.0))),
         trading_symbol=trading_symbol,
         event_blackout_minutes=int(os.getenv("EVENT_BLACKOUT_MINUTES", y.get("event_blackout_minutes", 15))),
@@ -118,6 +145,7 @@ def load_config() -> Config:
         ),
         trail_breakeven_buffer_pct=float(os.getenv("TRAIL_BREAKEVEN_BUFFER_PCT", y.get("trail_breakeven_buffer_pct", 0.05))),
         dhan_access_token=os.getenv("DHAN_ACCESS_TOKEN", ""),
+        dhan_client_id=os.getenv("DHAN_CLIENT_ID", ""),
         groww_session_token=os.getenv("GROWW_SESSION_TOKEN", ""),
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
         openai_base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
@@ -127,4 +155,16 @@ def load_config() -> Config:
         deepseek_api_key=os.getenv("DEEPSEEK_API_KEY", ""),
         deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
         deepseek_model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+        telegram_enabled=_bool(
+            os.getenv("TELEGRAM_ENABLED"),
+            default=bool(os.getenv("TELEGRAM_BOT_TOKEN", "").strip() and os.getenv("TELEGRAM_CHAT_ID", "").strip()),
+        ),
+        telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", ""),
+        telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", ""),
+        telegram_notify_trades=_bool(
+            os.getenv("TELEGRAM_NOTIFY_TRADES"), default=y.get("telegram_notify_trades", True)
+        ),
+        telegram_notify_ai=_bool(
+            os.getenv("TELEGRAM_NOTIFY_AI"), default=y.get("telegram_notify_ai", True)
+        ),
     )

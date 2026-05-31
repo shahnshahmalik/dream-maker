@@ -10,6 +10,7 @@ def test_factory_deepseek(monkeypatch):
     monkeypatch.setenv("ACTIVE_BROKER", "dhan")
     monkeypatch.setenv("ACTIVE_LLM", "deepseek")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-chat")
 
     from config import load_config
 
