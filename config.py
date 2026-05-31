@@ -167,4 +167,5 @@ def load_config() -> Config:
         telegram_notify_ai=_bool(
             os.getenv("TELEGRAM_NOTIFY_AI"), default=y.get("telegram_notify_ai", True)
         ),
+        trade_log_path=Path(os.getenv("TRADE_LOG_PATH", str(_ROOT / "trade_log.jsonl"))),
     )

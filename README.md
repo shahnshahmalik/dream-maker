@@ -16,6 +16,22 @@ python main.py --once               # simulation mode, one cycle
 python main.py                      # 24x7 daemon — trades 09:15–15:15 IST, pauses when closed
 ```
 
+### Docker
+
+```bash
+cp .env.example .env   # add API keys
+docker compose up -d --build
+docker compose logs -f dream-maker
+```
+
+One-off cycle:
+
+```bash
+docker compose run --rm dream-maker python main.py --once
+```
+
+State and audit log persist in the `dream-maker-data` volume. Container timezone is `Asia/Kolkata`.
+
 ## Configuration
 
 - [`config.yaml`](config.yaml) — defaults (risk limits, intervals); **symbol comes from `.env`**

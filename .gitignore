@@ -4,6 +4,7 @@ __pycache__/
 .env
 trade_log.jsonl
 state/
+docker-data/
 .pytest_cache/
 *.egg-info/
 dist/

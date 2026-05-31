@@ -1,0 +1,18 @@
+services:
+  dream-maker:
+    build: .
+    container_name: dream-maker
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Kolkata
+      STATE_DIR: /data/state
+      TRADE_LOG_PATH: /data/trade_log.jsonl
+    volumes:
+      - dream-maker-data:/data
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+
+volumes:
+  dream-maker-data:
