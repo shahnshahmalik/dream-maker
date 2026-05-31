@@ -1,0 +1,18 @@
+active_broker: dhan
+active_llm: openai_compat
+monitor_interval: 60
+max_open_trades: 3
+risk_pct_per_trade: 1.5
+daily_loss_limit: 5.0
+simulation_mode: true
+trading_hours_ist: "09:15-15:15"
+min_rr_ratio: 3.0
+min_signal_strength: 0.65
+entry_zone_tolerance_pct: 0.15
+ai_review_cooldown_minutes: 30
+ai_analysis_cooldown_minutes: 60
+fno_margin_rate: 0.12
+# TRADING_SYMBOL is required in .env (F&O only, e.g. NIFTY50IDX or NIFTY25JUNFUT)
+event_blackout_minutes: 15
+scheduled_events: []
+intraday_square_off: "15:15"
