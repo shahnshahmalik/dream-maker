@@ -12,6 +12,12 @@ entry_zone_tolerance_pct: 0.15
 ai_review_cooldown_minutes: 30
 ai_analysis_cooldown_minutes: 60
 fno_margin_rate: 0.12
+trail_enabled: true
+trail_activate_pct: 0.5
+trail_sl_distance_pct: 0.35
+trail_tp_reward_pct: 1.0
+trail_breakeven_progress_pct: 20
+trail_breakeven_buffer_pct: 0.05
 # TRADING_SYMBOL is required in .env (F&O only, e.g. NIFTY50IDX or NIFTY25JUNFUT)
 event_blackout_minutes: 15
 scheduled_events: []

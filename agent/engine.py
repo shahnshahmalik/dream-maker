@@ -9,6 +9,7 @@ from agent.entry_watcher import EntryWatcher
 from agent.executor import TradeExecutor
 from agent.monitor import PositionMonitor
 from agent.planner import TradePlanner
+from agent.trailing_service import TrailingService
 from analysis.pipeline import AnalysisPipeline
 from analysis.scanner import WatchlistScanner
 from audit.state_store import StateStore
@@ -47,7 +48,10 @@ class TradingEngine:
         self.planner = TradePlanner(self.llm, cfg, self.trade_logger)
         self.entry_watcher = EntryWatcher(self.broker, cfg)
         self.executor = TradeExecutor(self.broker, cfg, self.trade_logger, self.limits)
-        self.monitor = PositionMonitor(self.broker, self.llm, self.executor, cfg, self.trade_logger)
+        self.trailing = TrailingService(cfg, self.executor, self.trade_logger)
+        self.monitor = PositionMonitor(
+            self.broker, self.llm, self.executor, cfg, self.trade_logger, self.trailing,
+        )
         self.plans: list[TradePlan] = []
 
     def _recover_state(self) -> None:
@@ -119,6 +123,7 @@ class TradingEngine:
                 ai_setup_done=True,
             )
             self.plans.append(plan)
+            self.trailing.register(plan)
             log.info("Reconstructed active plan for %s qty=%s", pos.symbol, pos.qty)
 
         self.state_store.save_plans(self.plans)

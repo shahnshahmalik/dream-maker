@@ -59,6 +59,12 @@ class Config:
     ai_analysis_cooldown_minutes: int
     fno_margin_rate: float
     state_dir: Path
+    trail_enabled: bool
+    trail_activate_pct: float
+    trail_sl_distance_pct: float
+    trail_tp_reward_pct: float
+    trail_breakeven_progress_pct: float
+    trail_breakeven_buffer_pct: float
 
     dhan_access_token: str
     groww_session_token: str
@@ -100,6 +106,14 @@ def load_config() -> Config:
         ai_analysis_cooldown_minutes=int(os.getenv("AI_ANALYSIS_COOLDOWN_MIN", y.get("ai_analysis_cooldown_minutes", 60))),
         fno_margin_rate=float(os.getenv("FNO_MARGIN_RATE", y.get("fno_margin_rate", 0.12))),
         state_dir=Path(os.getenv("STATE_DIR", str(_ROOT / "state"))),
+        trail_enabled=_bool(os.getenv("TRAIL_ENABLED"), default=y.get("trail_enabled", True)),
+        trail_activate_pct=float(os.getenv("TRAIL_ACTIVATE_PCT", y.get("trail_activate_pct", 0.5))),
+        trail_sl_distance_pct=float(os.getenv("TRAIL_SL_DISTANCE_PCT", y.get("trail_sl_distance_pct", 0.35))),
+        trail_tp_reward_pct=float(os.getenv("TRAIL_TP_REWARD_PCT", y.get("trail_tp_reward_pct", 1.0))),
+        trail_breakeven_progress_pct=float(
+            os.getenv("TRAIL_BREAKEVEN_PROGRESS_PCT", y.get("trail_breakeven_progress_pct", 20))
+        ),
+        trail_breakeven_buffer_pct=float(os.getenv("TRAIL_BREAKEVEN_BUFFER_PCT", y.get("trail_breakeven_buffer_pct", 0.05))),
         dhan_access_token=os.getenv("DHAN_ACCESS_TOKEN", ""),
         groww_session_token=os.getenv("GROWW_SESSION_TOKEN", ""),
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),

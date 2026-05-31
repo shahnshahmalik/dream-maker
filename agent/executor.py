@@ -189,11 +189,56 @@ class TradeExecutor:
         if not plan.sl_order_id or not plan.entry_price:
             return
         result = self.broker.modify_order(plan.sl_order_id, sl=plan.entry_price)
+        plan.stop_loss = plan.entry_price
         self.trade_logger.log(
             "MODIFY", plan.symbol, self.broker.name,
             f"SL moved to breakeven {plan.entry_price}",
             {"sl_order_id": plan.sl_order_id, "success": result.success},
         )
+
+    def apply_trail(self, plan: TradePlan, update) -> None:
+        """Push trailed SL/TP levels to the broker bracket orders."""
+        from risk.trailing import TrailUpdate
+
+        if not isinstance(update, TrailUpdate):
+            return
+
+        sl_ok = tp_ok = True
+        if update.new_sl is not None and plan.sl_order_id:
+            result = self.broker.modify_order(plan.sl_order_id, sl=update.new_sl)
+            sl_ok = result.success
+            if sl_ok:
+                plan.stop_loss = update.new_sl
+
+        if update.new_tp is not None and plan.tp_order_id:
+            result = self.broker.modify_order(plan.tp_order_id, tp=update.new_tp)
+            tp_ok = result.success
+            if tp_ok:
+                plan.take_profit_1 = update.new_tp
+
+        if update.new_tp2 is not None:
+            plan.take_profit_2 = update.new_tp2
+
+        if update.tp1_milestone:
+            plan.tp1_hit = True
+
+        if update.new_sl is not None or update.new_tp is not None:
+            self.trade_logger.log(
+                "MODIFY", plan.symbol, self.broker.name,
+                update.reason or "Trailing SL/TP updated",
+                {
+                    "new_sl": update.new_sl,
+                    "new_tp": update.new_tp,
+                    "new_tp2": update.new_tp2,
+                    "sl_ok": sl_ok,
+                    "tp_ok": tp_ok,
+                    "plan": plan.to_dict(),
+                },
+            )
+            log.info(
+                "Trailed %s: SL=%s TP=%s (%s)",
+                plan.symbol, plan.stop_loss, plan.take_profit_1, update.reason,
+            )
 
     def partial_exit(self, plan: TradePlan, pct: float) -> None:
         qty = max(1, int(plan.position_size * pct / 100))
@@ -223,7 +268,7 @@ class TradeExecutor:
             self._groww_monitor.stop(plan.plan_id)
         self.trade_logger.log(
             "CLOSE", plan.symbol, self.broker.name, reason,
-            {"success": result.success, "qty": plan.position_size},
+            {"success": result.success, "qty": plan.position_size, "plan": plan.to_dict()},
         )
 
     def square_off_intraday(self, plans: list[TradePlan]) -> None:

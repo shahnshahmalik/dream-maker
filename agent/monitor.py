@@ -1,4 +1,4 @@
-"""Position monitoring — rule-first, AI only on cooldown."""
+"""Position monitoring — trailing, rule-first, AI only on cooldown."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timezone
 
 from agent.executor import TradeExecutor
+from agent.trailing_service import TrailingService
 from config import Config
 from analysis.technical import check_ltf_structure_break
 from llm.base import LLMProvider
@@ -25,16 +26,19 @@ class PositionMonitor:
         executor: TradeExecutor,
         cfg: Config,
         trade_logger: TradeLogger,
+        trailing: TrailingService | None = None,
     ):
         self.broker = broker
         self.llm = llm
         self.executor = executor
         self.cfg = cfg
         self.trade_logger = trade_logger
+        self.trailing = trailing or TrailingService(cfg, executor, trade_logger)
 
     def tick(self, plans: list[TradePlan]) -> None:
         active = [p for p in plans if p.status == PlanStatus.ACTIVE]
         for plan in active:
+            self.trailing.register(plan)
             self._monitor_one(plan)
 
     def _monitor_one(self, plan: TradePlan) -> None:
@@ -55,10 +59,14 @@ class PositionMonitor:
             else:
                 favorable = entry - ltp
 
+        moving_as_expected = favorable >= adverse and favorable > 0
+
+        if moving_as_expected and self.cfg.trail_enabled:
+            self.trailing.tick(plan, ltp)
+
         candles_15m = self.broker.get_ohlcv(plan.symbol, "15m", 20)
         candles_1h = self.broker.get_ohlcv(plan.symbol, "1h", 20)
         divergence_reasons: list[str] = []
-        moving_as_expected = favorable > adverse
 
         if sl_dist > 0 and adverse / sl_dist > 0.5:
             divergence_reasons.append("Price moved >50% toward SL")
@@ -71,30 +79,21 @@ class PositionMonitor:
         elif plan.direction == TradeDirection.SHORT and ltp > plan.stop_loss * 0.99:
             divergence_reasons.append("Near HTF invalidation/resistance breach")
 
-        if not plan.tp1_hit:
-            tp1_hit = (
-                (plan.direction == TradeDirection.LONG and ltp >= plan.take_profit_1)
-                or (plan.direction == TradeDirection.SHORT and ltp <= plan.take_profit_1)
-            )
-            if tp1_hit:
-                plan.tp1_hit = True
-                self.executor.modify_sl_breakeven(plan)
-                self.trade_logger.log(
-                    "MONITOR", plan.symbol, self.broker.name,
-                    "TP1 hit — SL moved to breakeven",
-                    {"ltp": ltp, "tp1": plan.take_profit_1},
-                )
-
         self.trade_logger.log(
             "MONITOR", plan.symbol, self.broker.name,
-            f"LTP={ltp:.2f} expected={moving_as_expected} adverse={adverse:.2f}",
-            {"divergence": divergence_reasons, "moving_as_expected": moving_as_expected},
+            f"LTP={ltp:.2f} expected={moving_as_expected} SL={plan.stop_loss:.2f} TP={plan.take_profit_1:.2f}",
+            {
+                "divergence": divergence_reasons,
+                "moving_as_expected": moving_as_expected,
+                "trail": plan.meta.get("trail"),
+            },
         )
 
         if not divergence_reasons:
             return
 
         if sl_dist > 0 and adverse / sl_dist > 0.75:
+            self.trailing.unregister(plan.plan_id)
             self.executor.close_plan(plan, reason=">75% toward SL — rule-based exit")
             return
 
@@ -145,4 +144,5 @@ class PositionMonitor:
             self.executor.partial_exit(plan, pct)
             return
         if decision == ReviewDecision.CLOSE:
+            self.trailing.unregister(plan.plan_id)
             self.executor.close_plan(plan, reason=response.reason)

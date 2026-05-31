@@ -253,6 +253,8 @@ class DhanProvider(BrokerProvider):
         payload: dict[str, Any] = {"orderId": order_id}
         if sl is not None:
             payload["triggerPrice"] = sl
+        if tp is not None:
+            payload["price"] = tp
         if qty is not None:
             payload["quantity"] = qty
         try:

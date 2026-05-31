@@ -36,7 +36,7 @@ python main.py                      # continuous monitoring loop
 2. **AI setup (once)** — refines entry/SL/TP markers; cooldown between AI analysis calls
 3. **WAITING_ENTRY** — watches price until LTP enters the marker zone (no immediate orders)
 4. **Bracketed entry** — entry only if SL + TP orders are confirmed (never naked)
-5. **Monitor** — rule-based checks each loop; AI review only on divergence + cooldown
+5. **Monitor** — rule-based checks each loop; **trail SL+TP** when moving as expected; AI review only on divergence + cooldown
 6. **Crash recovery** — resumes from `state/active_plans.json` and last `ORDER` in `trade_log.jsonl`
 7. **Heartbeat** — `state/heartbeat.json` updated each loop (detect crashes)
 
