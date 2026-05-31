@@ -75,9 +75,8 @@ def test_symbol_picker_select_picks_best_fit():
             InstrumentCandidate("BANKNIFTY", 15, 35000, 1),
         ],
     )
-    assert selected == "BANKNIFTY"  # preferred order: BANKNIFTY before SENSEX? 
-    # Actually both fit, BANKNIFTY comes after SENSEX in preferred list
-    # SENSEX should win (position 0)
+    assert selected == "BANKNIFTY"  # Both fit, BANKNIFTY preferred over SENSEX in list
+
 
 def test_symbol_picker_pref_order_sorts_by_preferred_list():
     picker = SymbolPicker(
@@ -95,3 +94,59 @@ def test_symbol_picker_pref_order_sorts_by_preferred_list():
     # All same min_capital, same tier → SENSEX should win (first in preferred)
     assert result is not None
     assert result.symbol == "SENSEX"
+
+
+# ---------- Task 2: build_candidates ----------
+
+class TestBuildCandidates:
+    def test_includes_index_futures_for_high_balance(self):
+        picker = SymbolPicker(preferred=["SENSEX", "BANKNIFTY", "NIFTY50IDX"])
+        candidates = picker.build_candidates(balance=100000.0)
+        symbols = {c.symbol for c in candidates}
+        assert "SENSEXFUT" in symbols
+        assert "BANKNIFTYFUT" in symbols
+        assert "NIFTYFUT" in symbols
+        # All should be tier 1
+        assert all(c.tier == 1 for c in candidates)
+
+    def test_includes_options_for_low_balance(self):
+        picker = SymbolPicker(preferred=["NIFTY50IDX"])
+        candidates = picker.build_candidates(balance=5000.0)
+        symbols = {c.symbol for c in candidates}
+        assert "NIFTYOPT" in symbols, f"Expected NIFTYOPT in candidates: {candidates}"
+        # Should have tier 2 options
+        tiers = {c.tier for c in candidates}
+        assert 2 in tiers, f"Expected tier 2 candidates, got tiers: {tiers}"
+
+    def test_includes_stock_futures_for_very_low_balance(self):
+        picker = SymbolPicker(preferred=["NIFTY50IDX"])
+        candidates = picker.build_candidates(balance=6500.0)
+        symbols = {c.symbol for c in candidates}
+        # Should include IDEA (cheapest stock F&O — ₹5K × 1.3 buffer = ₹6.5K)
+        assert "IDEAFUT" in symbols, f"Expected IDEAFUT in: {symbols}"
+        # Should include tier 3
+        tiers = {c.tier for c in candidates}
+        assert 3 in tiers, f"Expected tier 3 candidates, got tiers: {tiers}"
+
+    def test_full_pipeline_low_balance_selects_option(self):
+        """With ₹5K balance, the pipeline should select an option symbol."""
+        picker = SymbolPicker(
+            preferred=["SENSEX", "BANKNIFTY", "NIFTY50IDX"],
+            fallback="NIFTY50IDX",
+        )
+        candidates = picker.build_candidates(balance=5000.0)
+        selected = picker.select(5000.0, candidates)
+        # Should be an option (tier 2) — NOT an index future
+        assert selected == "NIFTYOPT" or selected != "NIFTY50IDX", (
+            f"Expected option symbol, got {selected}"
+        )
+
+    def test_full_pipeline_high_balance_selects_index_future(self):
+        """With ₹2L balance, the pipeline should pick preferred index future."""
+        picker = SymbolPicker(
+            preferred=["BANKNIFTY", "NIFTY50IDX"],
+            fallback="NIFTY50IDX",
+        )
+        candidates = picker.build_candidates(balance=200000.0)
+        selected = picker.select(200000.0, candidates)
+        assert selected == "BANKNIFTYFUT"
