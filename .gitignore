@@ -9,3 +9,5 @@ docker-data/
 *.egg-info/
 dist/
 build/
+data/scrip_master.csv
+data/scrip_master.db

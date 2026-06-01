@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -140,6 +141,27 @@ class DhanProvider(BrokerProvider):
             self._instrument_cache[sym] = info
             return info
 
+        # --- For option contracts: try scrip master lookup ---
+        is_option = "OPTIDX" in (market.instrument if market else "") or \
+                     (market.instrument == "OPTSTK" if market else False) or \
+                     bool(re.search(r"(CE|PE)$", sym, re.IGNORECASE))
+        if is_option:
+            scrip_sid = self._lookup_option_security_id(sym)
+            if scrip_sid and isinstance(scrip_sid, int) and scrip_sid > 0:
+                lot_from_db = self._lookup_option_lot_size(sym)
+                lot = lot_from_db if lot_from_db else (market.lot_size if market else 1)
+                info = {
+                    "symbol": sym,
+                    "exchangeSegment": "NSE_FNO",
+                    "securityId": str(scrip_sid),
+                    "instrument": market.instrument if market else "OPTIDX",
+                    "lotSize": lot,
+                }
+                self._instrument_cache[sym] = info
+                log.info("Resolved option via scrip master: %s → sid=%d lot=%d",
+                        sym, scrip_sid, lot)
+                return info
+
         # Use market info if available (e.g., option contracts with no numeric ID)
         lot_size: int = 1
         instrument: str = "FUTSTK"
@@ -159,6 +181,65 @@ class DhanProvider(BrokerProvider):
         }
         self._instrument_cache[sym] = info
         return info
+
+    # ------------------------------------------------------------------ #
+    # Scrip master lookup (option security IDs)
+    # ------------------------------------------------------------------ #
+    _OPTION_SYMBOL_RE = re.compile(
+        r"^(?P<underlying>[A-Z]+)(?P<yy>\d{2})(?P<month>[A-Z]{3})"
+        r"(?P<strike>\d+)(?P<type>CE|PE)$",
+        re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _parse_option_symbol(sym: str) -> dict | None:
+        """Parse a symbol like 'BANKNIFTY26JUN54400CE' into components."""
+        match = DhanProvider._OPTION_SYMBOL_RE.match(sym.strip().upper())
+        if not match:
+            return None
+        return {
+            "underlying": match.group("underlying"),
+            "yy": match.group("yy"),
+            "month": match.group("month").upper(),
+            "strike": int(match.group("strike")),
+            "option_type": match.group("type").upper(),
+        }
+
+    @staticmethod
+    def _month_to_number(mmm: str) -> int:
+        """Convert month abbreviation to number. JAN→1, FEB→2, ..."""
+        months = {v: k for k, v in enumerate(
+            ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+             "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"], start=1)}
+        return months.get(mmm.upper(), 0)
+
+    def _lookup_option_security_id(self, symbol: str) -> int | None:
+        """Look up the numeric Dhan security ID for an option contract.
+
+        Uses the scrip master SQLite DB if available. Tries exact
+        trading_symbol match first (converting between formats).
+        """
+        try:
+            from scripts.scrip_master import ScripMaster
+            sm = ScripMaster()
+            # Try direct trading_symbol lookup (handles format conversion)
+            sid = sm.get_by_trading_symbol(symbol)
+            sm.close()
+            return sid
+        except Exception as e:
+            log.debug("Scrip master lookup failed for %s: %s", symbol, e)
+            return None
+
+    def _lookup_option_lot_size(self, symbol: str) -> int | None:
+        """Look up lot size from scrip master DB."""
+        try:
+            from scripts.scrip_master import ScripMaster
+            sm = ScripMaster()
+            lot = sm.get_lot_size(symbol)
+            sm.close()
+            return lot
+        except Exception:
+            return None
 
     @staticmethod
     def _parse_candles(data: dict[str, Any], limit: int) -> list[OHLCV]:
