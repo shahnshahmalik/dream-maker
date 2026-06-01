@@ -118,12 +118,12 @@ class TestBuildCandidates:
         tiers = {c.tier for c in candidates}
         assert 2 in tiers, f"Expected tier 2 candidates, got tiers: {tiers}"
 
-    def test_includes_stock_futures_for_very_low_balance(self):
+    def test_includes_stock_options_for_very_low_balance(self):
         picker = SymbolPicker(preferred=["NIFTY50IDX"])
         candidates = picker.build_candidates(balance=6500.0)
         symbols = {c.symbol for c in candidates}
-        # Should include IDEA (cheapest stock F&O — ₹5K × 1.3 buffer = ₹6.5K)
-        assert "IDEAFUT" in symbols, f"Expected IDEAFUT in: {symbols}"
+        # Should include stock options (tier 3) for low balance
+        assert "DIXONOPT" in symbols, f"Expected DIXONOPT in: {symbols}"
         # Should include tier 3
         tiers = {c.tier for c in candidates}
         assert 3 in tiers, f"Expected tier 3 candidates, got tiers: {tiers}"

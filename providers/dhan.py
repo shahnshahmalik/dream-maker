@@ -71,6 +71,33 @@ class DhanProvider(BrokerProvider):
     def close(self) -> None:
         self._http.close()
 
+    def get_index_spot(self, index_name: str) -> float:
+        """Get the spot LTP for an index underlying (bypasses _allowed_symbol).
+
+        Used by SymbolPicker to compute ATM option strikes before the
+        trading_symbol is finalized.
+        """
+        from providers.dhan_instruments import INDEX_INSTRUMENTS, _index_key
+
+        key = _index_key(index_name)
+        if key is None:
+            raise ValueError(f"Not a known index: {index_name}")
+        meta = INDEX_INSTRUMENTS[key]
+        security_id = str(meta["securityId"])
+        segment = str(meta["exchangeSegment"])
+
+        try:
+            data = self._http.post(
+                "/v2/marketfeed/ltp",
+                json={segment: [int(security_id)]},
+            )
+            ltp = self._extract_ltp(data, segment, security_id)
+            if ltp <= 0:
+                raise ValueError("empty quote")
+            return ltp
+        except Exception as e:
+            raise ValueError(f"Failed to fetch spot for {index_name}: {e}")
+
     def _allowed_symbol(self, symbol: str) -> bool:
         sym = normalize_symbol(symbol)
         configured = normalize_symbol(self.cfg.trading_symbol)
@@ -113,12 +140,22 @@ class DhanProvider(BrokerProvider):
             self._instrument_cache[sym] = info
             return info
 
+        # Use market info if available (e.g., option contracts with no numeric ID)
+        lot_size: int = 1
+        instrument: str = "FUTSTK"
+        if market:
+            lot_size = market.lot_size
+            instrument = market.instrument
+        elif "NIFTY" in sym:
+            lot_size = 15 if "BANKNIFTY" in sym else 25
+            instrument = "FUTIDX"
+
         info = {
             "symbol": sym,
             "exchangeSegment": "NSE_FNO",
             "securityId": sym,
-            "instrument": "FUTIDX" if "NIFTY" in sym or "IDX" in sym else "FUTSTK",
-            "lotSize": 25 if "NIFTY" in sym else 1,
+            "instrument": instrument,
+            "lotSize": lot_size,
         }
         self._instrument_cache[sym] = info
         return info

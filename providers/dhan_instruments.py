@@ -55,12 +55,23 @@ def resolve_market_data_instrument(symbol: str) -> DhanInstrument | None:
 
     # Explicit F&O contract — security ID must be numeric; caller may enrich via scrip master later.
     if re.search(r"\d+(CE|PE)$", sym, re.IGNORECASE) or "FUT" in sym:
+        is_opt = bool(re.search(r"(CE|PE)$", sym, re.IGNORECASE))
+        # Determine lot size: BANKNIFTY=15, NIFTY/FINNIFTY=25, rest=1
+        sym_upper_clean = sym.upper()
+        if "BANKNIFTY" in sym_upper_clean:
+            lot = 15
+        elif "NIFTY" in sym_upper_clean or "FINNIFTY" in sym_upper_clean:
+            lot = 25
+        elif "SENSEX" in sym_upper_clean:
+            lot = 10
+        else:
+            lot = 1
         return DhanInstrument(
             symbol=sym,
             security_id="",
             exchange_segment="NSE_FNO",
-            instrument="OPTIDX" if re.search(r"(CE|PE)$", sym, re.IGNORECASE) else "FUTIDX",
-            lot_size=25 if "NIFTY" in sym else 1,
+            instrument="OPTIDX" if is_opt else "FUTIDX",
+            lot_size=lot,
         )
 
     return None

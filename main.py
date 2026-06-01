@@ -67,8 +67,26 @@ def main() -> int:
                 fallback=cfg.trading_symbol,
             )
             candidates = picker.build_candidates(balance)
-            selected = picker.select(balance, candidates)
-            resolved = picker.resolve(selected)
+            best = picker._best_fit(candidates, balance)
+            if best:
+                spot = 0.0
+                if best.is_option:
+                    # Fetch spot price for ATM option resolution
+                    try:
+                        spot = broker.get_index_spot(best.underlying)
+                    except Exception:
+                        # Stock option: try get_quote
+                        try:
+                            quote = broker.get_quote(best.underlying)
+                            spot = quote.ltp
+                        except Exception as qe:
+                            _picker_log.warning(
+                                "Could not fetch spot for %s: %s",
+                                best.underlying, qe,
+                            )
+                resolved = picker.resolve(best.symbol, spot_price=spot)
+            else:
+                resolved = cfg.trading_symbol
 
             if resolved != cfg.trading_symbol:
                 _picker_log.info(

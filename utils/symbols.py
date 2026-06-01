@@ -44,6 +44,13 @@ KNOWN_FNO_STOCKS: frozenset[str] = frozenset(
         "HCLTECH",
         "ASIANPAINT",
         "BAJFINANCE",
+        # User-requested stock options
+        "DIXON",
+        "JUBLFOOD",
+        "HPCL",
+        "INDUSTOWER",
+        "KFINTECH",
+        "EXIDEIND",
     }
 )
 
@@ -63,6 +70,7 @@ def underlying_base(symbol: str) -> str:
     s = re.sub(r"\d{2}[A-Z]{3}FUT.*", "", s, flags=re.IGNORECASE)
     s = re.sub(r"\d+(CE|PE).*$", "", s, flags=re.IGNORECASE)
     s = re.sub(r"(IDX|INDEX)$", "", s, flags=re.IGNORECASE)
+    s = re.sub(r"(OPT|FUT)$", "", s, flags=re.IGNORECASE)  # strip OPT/FUT tags
     return s
 
 
