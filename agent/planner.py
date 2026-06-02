@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from config import Config
 from llm.base import LLMProvider, RuleBasedLLMProvider
-from models.trade_plan import PlanStatus, TradePlan
+from models.trade_plan import PlanStatus, TradePlan, validate_bracket, validate_plan
 from audit.trade_logger import TradeLogger
 
 log = logging.getLogger("dream_maker.planner")
@@ -23,7 +23,8 @@ SETUP_PROMPT = """You are a systematic F&O trade planner. Given technical contex
   "take_profit_1": number,
   "take_profit_2": number
 }
-approve=false if setup is weak. Minimum R:R is 1:3. Never suggest naked entries."""
+approve=false if setup is weak. Swing setups need R:R >= 1:3. Momentum scalps need R:R >= 1:1.2 with tight SL.
+Never suggest naked entries — stop_loss and take_profit levels are mandatory."""
 
 
 class TradePlanner:
@@ -166,6 +167,20 @@ class TradePlanner:
         sl_dist = abs(entry - plan.stop_loss)
         tp_dist = abs(plan.take_profit_1 - entry)
         plan.rr_ratio = tp_dist / sl_dist if sl_dist else plan.rr_ratio
+        ok, reason = validate_plan(
+            plan,
+            min_rr=self.cfg.min_rr_ratio,
+            min_rr_scalp=self.cfg.scalp_min_rr_ratio,
+        )
+        if not ok:
+            plan.status = PlanStatus.PAUSED
+            plan.rationale = f"AI levels rejected: {reason}"
+            log.info("AI levels invalid [%s] %s — %s", self.llm.name, plan.symbol, reason)
+            self.trade_logger.log(
+                "AI_REVIEW", plan.symbol, self.llm.name, plan.rationale, {"phase": "setup", "approved": False}
+            )
+            return plan
+
         plan.ai_setup_done = True
         self._apply_default_markers(plan, overwrite=False)
         insight = str(data.get("reason", "AI markers applied"))

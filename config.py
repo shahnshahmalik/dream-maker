@@ -75,6 +75,14 @@ class Config:
     trail_tp_reward_pct: float
     trail_breakeven_progress_pct: float
     trail_breakeven_buffer_pct: float
+    scalp_enabled: bool
+    scalp_min_rr_ratio: float
+    scalp_min_signal_strength: float
+    scalp_max_sl_pct: float
+    scalp_min_confirmations: int
+    scalp_trail_activate_pct: float
+    scalp_trail_sl_distance_pct: float
+    scalp_trail_breakeven_progress_pct: float
 
     dhan_access_token: str
     dhan_client_id: str
@@ -144,6 +152,22 @@ def load_config() -> Config:
             os.getenv("TRAIL_BREAKEVEN_PROGRESS_PCT", y.get("trail_breakeven_progress_pct", 20))
         ),
         trail_breakeven_buffer_pct=float(os.getenv("TRAIL_BREAKEVEN_BUFFER_PCT", y.get("trail_breakeven_buffer_pct", 0.05))),
+        scalp_enabled=_bool(os.getenv("SCALP_ENABLED"), default=y.get("scalp_enabled", True)),
+        scalp_min_rr_ratio=float(os.getenv("SCALP_MIN_RR_RATIO", y.get("scalp_min_rr_ratio", 1.2))),
+        scalp_min_signal_strength=float(
+            os.getenv("SCALP_MIN_SIGNAL_STRENGTH", y.get("scalp_min_signal_strength", 0.55))
+        ),
+        scalp_max_sl_pct=float(os.getenv("SCALP_MAX_SL_PCT", y.get("scalp_max_sl_pct", 0.35))),
+        scalp_min_confirmations=int(os.getenv("SCALP_MIN_CONFIRMATIONS", y.get("scalp_min_confirmations", 2))),
+        scalp_trail_activate_pct=float(
+            os.getenv("SCALP_TRAIL_ACTIVATE_PCT", y.get("scalp_trail_activate_pct", 0.25))
+        ),
+        scalp_trail_sl_distance_pct=float(
+            os.getenv("SCALP_TRAIL_SL_DISTANCE_PCT", y.get("scalp_trail_sl_distance_pct", 0.2))
+        ),
+        scalp_trail_breakeven_progress_pct=float(
+            os.getenv("SCALP_TRAIL_BREAKEVEN_PROGRESS_PCT", y.get("scalp_trail_breakeven_progress_pct", 15))
+        ),
         dhan_access_token=os.getenv("DHAN_ACCESS_TOKEN", ""),
         dhan_client_id=os.getenv("DHAN_CLIENT_ID", ""),
         groww_session_token=os.getenv("GROWW_SESSION_TOKEN", ""),

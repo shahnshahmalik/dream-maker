@@ -32,6 +32,10 @@ docker compose run --rm dream-maker python main.py --once
 
 State and audit log persist in the `dream-maker-data` volume. Container timezone is `Asia/Kolkata`.
 
+**Single instance:** the app writes `state/dream-maker.lock` on startup. A second start exits immediately instead of duplicating trades.
+
+**External watchdog (cron/systemd):** use `scripts/ensure_running.sh` — it uses `flock` and checks the lock file before starting. Do **not** run both Docker `restart: unless-stopped` and a separate restart script without the lock checks.
+
 ## Configuration
 
 - [`config.yaml`](config.yaml) — defaults (risk limits, intervals); **symbol comes from `.env`**
@@ -50,11 +54,11 @@ State and audit log persist in the `dream-maker-data` volume. Container timezone
 
 ## Trade flow
 
-1. **Scan** — technical + macro analysis; requires signal strength ≥ 0.65 and R:R ≥ **1:3**
+1. **Scan** — swing (HTF+LTF, R:R ≥ 3) or **momentum scalp** (LTF burst + ≥2 confirmations, R:R ≥ 1.2)
 2. **AI setup (once)** — refines entry/SL/TP markers; cooldown between AI analysis calls
-3. **WAITING_ENTRY** — watches price until LTP enters the marker zone (no immediate orders)
-4. **Bracketed entry** — entry only if SL + TP orders are confirmed (never naked)
-5. **Monitor** — rule-based checks each loop; **trail SL+TP** when moving as expected; AI review only on divergence + cooldown
+3. **WAITING_ENTRY** — LTP in marker zone; scalps also require live 5m momentum confirmation
+4. **Bracketed entry** — entry only if SL + TP orders are confirmed (never naked); invalid brackets blocked pre-order
+5. **Monitor** — rule-based checks each loop; **trail SL+TP** when moving as expected (tighter trail for scalps); AI review only on divergence + cooldown
 6. **Crash recovery** — resumes from `state/active_plans.json` and last `ORDER` in `trade_log.jsonl`
 7. **Heartbeat** — `state/heartbeat.json` updated each loop (detect crashes)
 
@@ -63,8 +67,15 @@ State and audit log persist in the `dream-maker-data` volume. Container timezone
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `TRADING_SYMBOL` | required | Single F&O symbol |
-| `MIN_RR_RATIO` | 3.0 | Minimum risk:reward |
-| `MIN_SIGNAL_STRENGTH` | 0.65 | Pause if setup is weak |
+| `MIN_RR_RATIO` | 3.0 | Minimum risk:reward (swing setups) |
+| `MIN_SIGNAL_STRENGTH` | 0.65 | Pause if swing setup is weak |
+| `SCALP_ENABLED` | true | Allow LTF momentum scalps when swing gates fail |
+| `SCALP_MIN_RR_RATIO` | 1.2 | Minimum R:R for momentum scalps |
+| `SCALP_MIN_SIGNAL_STRENGTH` | 0.55 | Signal floor for scalps |
+| `SCALP_MIN_CONFIRMATIONS` | 2 | Required momentum signals (EMA, volume, breakout, etc.) |
+| `SCALP_MAX_SL_PCT` | 0.35 | Max stop distance (% of price) for scalps |
+| `TRAIL_ENABLED` | true | Trail SL+TP when trade moves favorably |
+| `SCALP_TRAIL_*` | see `.env.example` | Tighter trailing for scalp trades |
 | `AI_REVIEW_COOLDOWN_MIN` | 30 | Min minutes between AI position reviews |
 | `AI_ANALYSIS_COOLDOWN_MIN` | 60 | Min minutes between AI setup calls |
 | `ENTRY_ZONE_TOLERANCE_PCT` | 0.15 | Entry marker band around target price |

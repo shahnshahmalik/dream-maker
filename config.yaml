@@ -22,6 +22,14 @@ trail_sl_distance_pct: 0.35
 trail_tp_reward_pct: 1.0
 trail_breakeven_progress_pct: 20
 trail_breakeven_buffer_pct: 0.05
+scalp_enabled: true
+scalp_min_rr_ratio: 1.2
+scalp_min_signal_strength: 0.55
+scalp_max_sl_pct: 0.35
+scalp_min_confirmations: 2
+scalp_trail_activate_pct: 0.25
+scalp_trail_sl_distance_pct: 0.2
+scalp_trail_breakeven_progress_pct: 15
 # TRADING_SYMBOL is required in .env (F&O only, e.g. NIFTY50IDX or NIFTY25JUNFUT)
 event_blackout_minutes: 15
 scheduled_events: []

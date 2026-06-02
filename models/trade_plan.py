@@ -171,18 +171,52 @@ class TradePlan:
         return "\n".join(lines)
 
 
-def validate_plan(plan: TradePlan, *, min_rr: float, max_sl_capital_pct: float = 2.0) -> tuple[bool, str]:
-    if plan.rr_ratio < min_rr:
-        return False, f"R:R {plan.rr_ratio:.2f} below minimum {min_rr}"
+def validate_bracket(plan: TradePlan, entry: float | None = None) -> tuple[bool, str]:
+    """Ensure SL/TP are on the correct side of entry — never naked."""
+    if plan.stop_loss <= 0 or plan.take_profit_1 <= 0 or plan.take_profit_2 <= 0:
+        return False, "SL and TP levels must be positive"
+    if plan.stop_loss == plan.take_profit_1:
+        return False, "SL and TP1 cannot be equal"
+
+    px = entry if entry is not None else plan.entry_target()
+    if plan.direction == TradeDirection.LONG:
+        if plan.stop_loss >= px:
+            return False, "LONG stop loss must be below entry"
+        if plan.take_profit_1 <= px:
+            return False, "LONG take profit must be above entry"
+        if plan.take_profit_2 <= plan.take_profit_1:
+            return False, "LONG TP2 must be above TP1"
+    else:
+        if plan.stop_loss <= px:
+            return False, "SHORT stop loss must be above entry"
+        if plan.take_profit_1 >= px:
+            return False, "SHORT take profit must be below entry"
+        if plan.take_profit_2 >= plan.take_profit_1:
+            return False, "SHORT TP2 must be below TP1"
+    return True, "ok"
+
+
+def required_min_rr(plan: TradePlan, *, min_rr: float, min_rr_scalp: float | None = None) -> float:
+    if plan.meta.get("setup_type") == "momentum_scalp" and min_rr_scalp is not None:
+        return min_rr_scalp
+    return min_rr
+
+
+def validate_plan(
+    plan: TradePlan,
+    *,
+    min_rr: float,
+    min_rr_scalp: float | None = None,
+    max_sl_capital_pct: float = 2.0,
+) -> tuple[bool, str]:
+    floor = required_min_rr(plan, min_rr=min_rr, min_rr_scalp=min_rr_scalp)
+    if plan.rr_ratio < floor:
+        return False, f"R:R {plan.rr_ratio:.2f} below minimum {floor}"
     if plan.position_size <= 0:
         return False, "Position size must be positive"
     if plan.risk_amount <= 0:
         return False, "Risk amount must be positive"
-    if plan.stop_loss <= 0 or plan.take_profit_1 <= 0:
-        return False, "SL and TP1 must be positive prices"
-    if plan.stop_loss == plan.take_profit_1:
-        return False, "SL and TP1 cannot be equal"
-    return True, "ok"
+    return validate_bracket(plan)
 
 
 def is_strong_signal(plan: TradePlan, min_strength: float) -> bool:

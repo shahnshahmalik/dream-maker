@@ -5,6 +5,7 @@ from models.trade_plan import (
     PlanStatus,
     TradeDirection,
     TradePlan,
+    validate_bracket,
     validate_plan,
 )
 
@@ -50,3 +51,10 @@ def test_rejects_zero_size():
     plan = _sample_plan(position_size=0)
     ok, reason = validate_plan(plan, min_rr=2.0)
     assert not ok
+
+
+def test_rejects_invalid_long_bracket():
+    plan = _sample_plan(stop_loss=2550.0, take_profit_1=2600.0)
+    ok, reason = validate_bracket(plan, 2500.0)
+    assert not ok
+    assert "below entry" in reason

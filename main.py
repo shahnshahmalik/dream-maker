@@ -14,6 +14,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--live", action="store_true", help="Disable simulation mode (live orders)")
     ap.add_argument("--scan-only", action="store_true", help="Analysis and plans only, no orders")
     ap.add_argument("--once", action="store_true", help="Run one cycle then exit")
+    ap.add_argument(
+        "--no-lock",
+        action="store_true",
+        help="Allow multiple instances (not recommended with a watchdog)",
+    )
     return ap.parse_args()
 
 
@@ -21,6 +26,20 @@ def main() -> int:
     setup_logging()
     args = parse_args()
     cfg = load_config()
+
+    instance_lock = None
+    if not args.no_lock:
+        from utils.instance_lock import acquire_instance_lock, release_instance_lock
+
+        lock_path = cfg.state_dir / "dream-maker.lock"
+        instance_lock = acquire_instance_lock(lock_path)
+        if instance_lock is None:
+            print(
+                "ERROR: another dream-maker instance is already running "
+                f"(lock: {lock_path}). Stop it first or use --no-lock for testing.",
+                file=sys.stderr,
+            )
+            return 3
 
     if args.live:
         if not sys.stdin.isatty():
@@ -50,6 +69,11 @@ def main() -> int:
         import logging
         logging.getLogger("dream_maker").exception("Fatal: %s", e)
         return 1
+    finally:
+        if instance_lock is not None:
+            from utils.instance_lock import release_instance_lock
+
+            release_instance_lock()
     return 0
 
 

@@ -8,7 +8,7 @@ from typing import Callable
 
 from config import Config
 from audit.trade_logger import TradeLogger
-from models.trade_plan import PlanStatus, TradeDirection, TradePlan
+from models.trade_plan import PlanStatus, TradeDirection, TradePlan, validate_bracket
 from providers.base import BrokerProvider
 from providers.groww import GrowwProvider
 from risk.limits import LimitsGuard
@@ -122,6 +122,18 @@ class TradeExecutor:
 
         side = "BUY" if plan.direction == TradeDirection.LONG else "SELL"
         entry_price = float(plan.entry_zone)
+
+        bracket_ok, bracket_reason = validate_bracket(plan, entry_price)
+        if not bracket_ok:
+            log.error("Bracket validation failed for %s: %s — entry blocked (never naked)", plan.symbol, bracket_reason)
+            plan.status = PlanStatus.INVALIDATED
+            self.trade_logger.log(
+                "ORDER", plan.symbol, self.broker.name,
+                f"Entry blocked — {bracket_reason}",
+                {"success": False, "never_naked": True},
+            )
+            return plan
+
         result = self.broker.place_order(
             symbol=plan.symbol,
             side=side,

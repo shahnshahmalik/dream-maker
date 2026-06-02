@@ -73,10 +73,18 @@ class DhanProvider(BrokerProvider):
 
     def _allowed_symbol(self, symbol: str) -> bool:
         sym = normalize_symbol(symbol)
-        base = underlying_base(sym)
         configured = normalize_symbol(self.cfg.trading_symbol)
-        configured_base = underlying_base(configured)
-        return sym == configured or base == configured_base or base == configured.replace("50", "")
+        if sym == configured:
+            return True
+        cb = underlying_base(configured)
+        if cb and cb in sym:
+            return True
+        sb = underlying_base(sym)
+        if sb and sb == cb:
+            return True
+        if sym.startswith(cb.replace("50", "")) or sym.startswith(cb[:5]):
+            return True
+        return False
 
     def _market_instrument(self, symbol: str) -> DhanInstrument | None:
         sym = normalize_symbol(symbol)

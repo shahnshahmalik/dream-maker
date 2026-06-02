@@ -27,6 +27,12 @@ class TrailingService:
             return
         entry = plan.entry_price or plan.entry_target()
         trail_meta = plan.meta.get("trail", {})
+        is_scalp = plan.meta.get("setup_type") == "momentum_scalp"
+        trail_activate = self.cfg.scalp_trail_activate_pct if is_scalp else self.cfg.trail_activate_pct
+        trail_sl_distance = self.cfg.scalp_trail_sl_distance_pct if is_scalp else self.cfg.trail_sl_distance_pct
+        breakeven_progress = (
+            self.cfg.scalp_trail_breakeven_progress_pct if is_scalp else self.cfg.trail_breakeven_progress_pct
+        )
         state = TrailingState.from_dict(
             trail_meta,
             fallback_entry=entry,
@@ -41,10 +47,10 @@ class TrailingService:
             initial_sl=plan.stop_loss,
             initial_tp1=plan.take_profit_1,
             initial_tp2=plan.take_profit_2,
-            trail_activate_pct=self.cfg.trail_activate_pct,
-            trail_sl_distance_pct=self.cfg.trail_sl_distance_pct,
+            trail_activate_pct=trail_activate,
+            trail_sl_distance_pct=trail_sl_distance,
             trail_tp_reward_pct=self.cfg.trail_tp_reward_pct,
-            breakeven_progress_pct=self.cfg.trail_breakeven_progress_pct,
+            breakeven_progress_pct=breakeven_progress,
             breakeven_buffer_pct=self.cfg.trail_breakeven_buffer_pct,
             state=state,
         )

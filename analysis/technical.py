@@ -1,8 +1,8 @@
-"""Technical analysis — HTF/LTF trend, EMA, S/R, projections."""
+"""Technical analysis — swing setups, momentum scalps, trailing helpers."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 import pandas as pd
@@ -15,6 +15,11 @@ class Trend(str, Enum):
     UPTREND = "uptrend"
     DOWNTREND = "downtrend"
     RANGE = "range"
+
+
+class SetupType(str, Enum):
+    SWING = "swing"
+    MOMENTUM_SCALP = "momentum_scalp"
 
 
 @dataclass
@@ -33,6 +38,8 @@ class TechnicalContext:
     direction: TradeDirection
     bias_source: str
     signal_strength: float = 0.0
+    setup_type: SetupType = SetupType.SWING
+    confirmations: list[str] = field(default_factory=list)
 
 
 def _ohlcv_to_df(candles: list[OHLCV]) -> pd.DataFrame:
@@ -63,17 +70,56 @@ def detect_trend(df: pd.DataFrame) -> Trend:
     return Trend.RANGE
 
 
-def analyze_technical(
-    htf_candles: list[OHLCV],
+def momentum_confirmation(
     ltf_candles: list[OHLCV],
+    direction: TradeDirection,
     *,
-    min_rr: float = 2.0,
-) -> TechnicalContext | None:
-    if len(htf_candles) < 20 or len(ltf_candles) < 20:
-        return None
+    min_confirmations: int = 2,
+) -> tuple[bool, list[str]]:
+    """Require multiple independent momentum signals before a scalp entry."""
+    if len(ltf_candles) < 12:
+        return False, []
 
-    htf = _ohlcv_to_df(htf_candles)
     ltf = _ohlcv_to_df(ltf_candles)
+    ema9 = _ema(ltf["close"], 9)
+    ema21 = _ema(ltf["close"], 21)
+    last = ltf.iloc[-1]
+    prev = ltf.tail(6).iloc[:-1]
+    avg_vol = float(ltf["volume"].tail(10).mean()) or 1.0
+    reasons: list[str] = []
+
+    if direction == TradeDirection.LONG:
+        if float(ema9.iloc[-1]) > float(ema21.iloc[-1]):
+            reasons.append("ema9>ema21")
+        if float(last["close"]) > float(last["open"]):
+            reasons.append("bullish_candle")
+        if float(last["close"]) > float(prev["high"].max()):
+            reasons.append("micro_breakout")
+        if float(last["volume"]) >= avg_vol * 0.85:
+            reasons.append("volume_confirm")
+        if float(ltf["close"].iloc[-1]) > float(ltf["close"].iloc[-2]):
+            reasons.append("momentum_tick")
+    else:
+        if float(ema9.iloc[-1]) < float(ema21.iloc[-1]):
+            reasons.append("ema9<ema21")
+        if float(last["close"]) < float(last["open"]):
+            reasons.append("bearish_candle")
+        if float(last["close"]) < float(prev["low"].min()):
+            reasons.append("micro_breakdown")
+        if float(last["volume"]) >= avg_vol * 0.85:
+            reasons.append("volume_confirm")
+        if float(ltf["close"].iloc[-1]) < float(ltf["close"].iloc[-2]):
+            reasons.append("momentum_tick")
+
+    return len(reasons) >= min_confirmations, reasons
+
+
+def _analyze_swing(
+    htf: pd.DataFrame,
+    ltf: pd.DataFrame,
+    *,
+    min_rr: float,
+) -> TechnicalContext | None:
     htf_trend = detect_trend(htf)
     ltf_trend = detect_trend(ltf)
     ema200 = _ema(htf["close"], min(200, len(htf)))
@@ -106,6 +152,13 @@ def analyze_technical(
         (direction == TradeDirection.LONG and ltf_trend == Trend.UPTREND)
         or (direction == TradeDirection.SHORT and ltf_trend == Trend.DOWNTREND)
     )
+    if sl_dist <= 0:
+        return None
+
+    if direction == TradeDirection.LONG and stop_loss >= entry:
+        return None
+    if direction == TradeDirection.SHORT and stop_loss <= entry:
+        return None
     if not ltf_aligned:
         return None
 
@@ -132,6 +185,132 @@ def analyze_technical(
         direction=direction,
         bias_source=bias,
         signal_strength=min(1.0, strength),
+        setup_type=SetupType.SWING,
+    )
+
+
+def _analyze_momentum_scalp(
+    htf: pd.DataFrame,
+    ltf: pd.DataFrame,
+    ltf_candles: list[OHLCV],
+    *,
+    min_rr: float,
+    max_sl_pct: float,
+    min_confirmations: int,
+) -> TechnicalContext | None:
+    htf_trend = detect_trend(htf)
+    ltf_trend = detect_trend(ltf)
+    entry = float(ltf["close"].iloc[-1])
+    support = float(htf["low"].tail(20).min())
+    resistance = float(htf["high"].tail(20).max())
+    ema200 = _ema(htf["close"], min(200, len(htf)))
+    last_close = float(htf["close"].iloc[-1])
+    above_200 = last_close > float(ema200.iloc[-1]) if len(ema200) else True
+
+    if ltf_trend == Trend.UPTREND:
+        direction = TradeDirection.LONG
+    elif ltf_trend == Trend.DOWNTREND:
+        direction = TradeDirection.SHORT
+    else:
+        return None
+
+    if direction == TradeDirection.LONG and htf_trend == Trend.DOWNTREND:
+        return None
+    if direction == TradeDirection.SHORT and htf_trend == Trend.UPTREND:
+        return None
+
+    confirmed, reasons = momentum_confirmation(
+        ltf_candles,
+        direction,
+        min_confirmations=min_confirmations,
+    )
+    if not confirmed:
+        return None
+
+    max_sl_frac = max(0.05, max_sl_pct) / 100.0
+    if direction == TradeDirection.LONG:
+        structural_sl = float(ltf["low"].tail(3).min())
+        cap_sl = entry * (1 - max_sl_frac)
+        stop_loss = max(structural_sl, cap_sl)
+        if stop_loss >= entry:
+            return None
+        sl_dist = entry - stop_loss
+        tp1 = entry + sl_dist * min_rr
+        tp2 = entry + sl_dist * (min_rr * 1.5)
+        bias = f"LTF momentum scalp ({', '.join(reasons[:3])})"
+    else:
+        structural_sl = float(ltf["high"].tail(3).max())
+        cap_sl = entry * (1 + max_sl_frac)
+        stop_loss = min(structural_sl, cap_sl)
+        if stop_loss <= entry:
+            return None
+        sl_dist = stop_loss - entry
+        tp1 = entry - sl_dist * min_rr
+        tp2 = entry - sl_dist * (min_rr * 1.5)
+        bias = f"LTF momentum scalp ({', '.join(reasons[:3])})"
+
+    if sl_dist <= 0:
+        return None
+
+    rr = min_rr
+    ltf_aligned = True
+    strength = 0.35
+    strength += min(0.35, 0.07 * len(reasons))
+    strength += 0.15 if htf_trend != Trend.RANGE else 0.05
+    strength += 0.15 if (direction == TradeDirection.LONG and above_200) or (
+        direction == TradeDirection.SHORT and not above_200
+    ) else 0.0
+
+    return TechnicalContext(
+        htf_trend=htf_trend,
+        ltf_trend=ltf_trend,
+        above_200ema=above_200,
+        support=support,
+        resistance=resistance,
+        ltf_aligned=ltf_aligned,
+        entry=entry,
+        stop_loss=stop_loss,
+        tp1=tp1,
+        tp2=tp2,
+        rr_ratio=rr,
+        direction=direction,
+        bias_source=bias,
+        signal_strength=min(1.0, strength),
+        setup_type=SetupType.MOMENTUM_SCALP,
+        confirmations=reasons,
+    )
+
+
+def analyze_technical(
+    htf_candles: list[OHLCV],
+    ltf_candles: list[OHLCV],
+    *,
+    min_rr: float = 2.0,
+    scalp_enabled: bool = True,
+    scalp_min_rr: float = 1.2,
+    scalp_max_sl_pct: float = 0.35,
+    scalp_min_confirmations: int = 2,
+) -> TechnicalContext | None:
+    if len(htf_candles) < 20 or len(ltf_candles) < 20:
+        return None
+
+    htf = _ohlcv_to_df(htf_candles)
+    ltf = _ohlcv_to_df(ltf_candles)
+
+    swing = _analyze_swing(htf, ltf, min_rr=min_rr)
+    if swing is not None:
+        return swing
+
+    if not scalp_enabled:
+        return None
+
+    return _analyze_momentum_scalp(
+        htf,
+        ltf,
+        ltf_candles,
+        min_rr=scalp_min_rr,
+        max_sl_pct=scalp_max_sl_pct,
+        min_confirmations=scalp_min_confirmations,
     )
 
 

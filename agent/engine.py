@@ -32,6 +32,14 @@ from utils.symbols import normalize_symbol
 log = logging.getLogger("dream_maker.engine")
 
 
+def _is_api_error(exc: BaseException) -> bool:
+    try:
+        import httpx
+    except ImportError:
+        return False
+    return isinstance(exc, (httpx.HTTPError, httpx.TimeoutException))
+
+
 class TradingEngine:
     def __init__(self, cfg: Config, *, scan_only: bool = False):
         self.cfg = cfg
@@ -325,7 +333,7 @@ class TradingEngine:
                 should_continue = self.run_once()
             except Exception as e:
                 log.exception("Loop error: %s", e)
-                if self.limits.record_api_error():
+                if _is_api_error(e) and self.limits.record_api_error():
                     log.error("Trading halted: %s", self.limits.state.halt_reason)
                     break
                 should_continue = True

@@ -13,6 +13,8 @@ services:
     restart: unless-stopped
     stop_signal: SIGTERM
     stop_grace_period: 30s
+    # Do not also run scripts/ensure_running.sh on the same host — Docker handles restarts.
+    # Single-instance lock: state/dream-maker.lock inside /data/state
 
 volumes:
   dream-maker-data:
