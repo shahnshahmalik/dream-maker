@@ -44,10 +44,25 @@ def check_fundamental(symbol: str) -> FundamentalContext:
             timeout=10,
             follow_redirects=True,
         )
+        resp.raise_for_status()
         titles = re.findall(r"<title>([^<]+)</title>", resp.text)
         text = " ".join(titles[1:6]).lower()
+        
+        # If no relevant content, try a broader search
+        if not text.strip() or base.lower() not in text:
+            log.debug("No specific news for %s, trying broader search", base)
+            resp = httpx.get(
+                "https://news.google.com/rss/search",
+                params={"q": f"NSE stock market {sector} when:3d", "hl": "en-IN"},
+                timeout=8,
+                follow_redirects=True,
+            )
+            resp.raise_for_status()
+            titles = re.findall(r"<title>([^<]+)</title>", resp.text)
+            text = " ".join(titles[1:4]).lower()
+            
     except Exception as e:
-        log.debug("Fundamental news fetch failed: %s", e)
+        log.debug("Fundamental news fetch failed for %s: %s", base, e)
 
     for k in NEGATIVE_KEYWORDS:
         if k in text:

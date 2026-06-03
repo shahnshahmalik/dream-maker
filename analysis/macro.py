@@ -34,19 +34,31 @@ class MacroContext:
 
 def fetch_headlines(limit: int = 20) -> list[str]:
     headlines: list[str] = []
-    try:
-        resp = httpx.get(
-            "https://news.google.com/rss/search",
-            params={"q": "India stock market NIFTY RBI Fed VIX when:1d", "hl": "en-IN"},
-            timeout=15,
-            follow_redirects=True,
-        )
-        resp.raise_for_status()
-        titles = re.findall(r"<title>([^<]+)</title>", resp.text)
-        headlines = [t for t in titles[1 : limit + 1] if t.strip()]
-    except Exception as e:
-        log.warning("Headline fetch failed: %s", e)
-        headlines = ["Market awaits RBI policy", "US futures mixed ahead of data"]
+    
+    # Try with exponential backoff on failures
+    for attempt in range(3):
+        try:
+            timeout = 10 + (attempt * 5)  # 10s, 15s, 20s
+            resp = httpx.get(
+                "https://news.google.com/rss/search",
+                params={"q": "India stock market NIFTY RBI Fed VIX when:1d", "hl": "en-IN"},
+                timeout=timeout,
+                follow_redirects=True,
+            )
+            resp.raise_for_status()
+            titles = re.findall(r"<title>([^<]+)</title>", resp.text)
+            headlines = [t for t in titles[1 : limit + 1] if t.strip()]
+            if headlines:  # Success - break retry loop
+                break
+        except Exception as e:
+            log.warning("Headline fetch attempt %d failed: %s", attempt + 1, e)
+            if attempt == 2:  # Last attempt failed
+                headlines = [
+                    "Market awaits RBI policy", 
+                    "US futures mixed ahead of data",
+                    "Investors watch global cues",
+                ]
+    
     return headlines
 
 

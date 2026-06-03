@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 
 from agent.engine import TradingEngine, setup_logging
@@ -20,6 +21,156 @@ def parse_args() -> argparse.Namespace:
         help="Allow multiple instances (not recommended with a watchdog)",
     )
     return ap.parse_args()
+
+
+# ── Premium affordability helper (used by symbol picker) ──
+
+MARGIN_BUFFER = 1.3  # must match SymbolPicker.MARGIN_BUFFER
+
+
+def _find_affordable_option(
+    picker,
+    broker,
+    best,          # InstrumentCandidate
+    resolved: str,  # initial ATM resolution
+    spot: float,
+    balance: float,
+    candidates: list,
+    fallback: str,
+    log,
+) -> str:
+    """Check that the resolved option premium fits the balance.
+
+    If ATM is too expensive, try increasingly OTM strikes on the same
+    underlying, then fall back to the next candidate (different symbol).
+    """
+    # ── Check ATM premium ──
+    if _premium_fits(broker, resolved, best.lot_size, balance, log, spot=spot):
+        return resolved
+
+    log.info(
+        "Option %s premium exceeds balance ₹%.0f — trying OTM strikes...",
+        resolved, balance,
+    )
+
+    # ── Try OTM strikes on same underlying ──
+    if spot > 0 or best.underlying in picker.STOCK_SPOTS:
+        effective_spot = spot if spot > 0 else picker.STOCK_SPOTS.get(best.underlying.upper(), 0)
+        if effective_spot > 0:
+            otm_symbols = picker._resolve_otm_strikes(best.underlying, effective_spot, max_otm_steps=6)
+            for otm_sym in otm_symbols:
+                if _premium_fits(broker, otm_sym, best.lot_size, balance, log, spot=effective_spot):
+                    log.info("Found affordable OTM strike: %s", otm_sym)
+                    return otm_sym
+
+    log.warning(
+        "No affordable OTM strike for %s — trying next candidate...",
+        best.underlying,
+    )
+
+    # ── Fall back to next candidate ──
+    # Remove this candidate and re-rank
+    remaining = [c for c in candidates if c.symbol != best.symbol]
+    next_best = picker._best_fit(remaining, balance)
+    if next_best:
+        spot2 = 0.0
+        if next_best.is_option:
+            try:
+                spot2 = broker.get_index_spot(next_best.underlying)
+            except Exception:
+                try:
+                    q = broker.get_quote(next_best.underlying)
+                    spot2 = q.ltp
+                except Exception:
+                    pass
+        next_resolved = picker.resolve(next_best.symbol, spot_price=spot2)
+        if next_best.is_option:
+            next_resolved = _find_affordable_option(
+                picker, broker, next_best, next_resolved, spot2,
+                balance, remaining, fallback, log,
+            )
+        return next_resolved
+
+    log.warning("No affordable candidate found — using fallback %s", fallback)
+    return fallback
+
+
+def _premium_fits(
+    broker,
+    option_symbol: str,
+    lot_size: int,
+    balance: float,
+    log,
+    spot: float = 0.0,
+) -> bool:
+    """Return True if the option's estimated premium × lot_size fits within balance.
+
+    Dhan's ``get_quote`` returns spot/underlying prices for options, not the
+    actual option premium.  We estimate the premium from the strike distance
+    and typical ATM pricing instead.
+    """
+    try:
+        # Extract strike from symbol (e.g., "NIFTY26JUN23400CE" → 23400)
+        m = re.search(r"(\d{4,5})(CE|PE)", option_symbol)
+        if not m:
+            log.warning("Cannot parse strike from %s — assuming affordable", option_symbol)
+            return True
+        strike = int(m.group(1))
+
+        # Need spot price for estimation
+        if spot <= 0:
+            # Try to extract underlying and fetch spot
+            underlying = option_symbol.split(str(strike))[0]
+            # Remove date code (e.g., "NIFTY26JUN" → "NIFTY")
+            underlying_clean = re.sub(r"\d{2}[A-Z]{3}$", "", underlying)
+            try:
+                spot = broker.get_index_spot(underlying_clean)
+            except Exception:
+                try:
+                    q = broker.get_quote(underlying_clean)
+                    spot = q.ltp
+                except Exception:
+                    log.warning("Cannot get spot for %s — assuming affordable", underlying_clean)
+                    return True
+
+        # Estimate ATM premium as % of spot (empirical for Indian index options)
+        underlying_upper = option_symbol[:6].upper()
+        if "NIFTY" in underlying_upper and "BANK" not in underlying_upper:
+            atm_pct = 0.008   # ~0.8% for NIFTY ATM
+        elif "BANKNIFTY" in underlying_upper:
+            atm_pct = 0.006   # ~0.6% for BANKNIFTY ATM
+        elif "SENSEX" in underlying_upper:
+            atm_pct = 0.005   # ~0.5% for SENSEX ATM
+        else:
+            atm_pct = 0.010   # ~1.0% for stocks
+
+        # Premium decays as we go OTM. Each 1% away from spot → ~15% premium drop
+        distance_pct = abs(strike - spot) / spot  # e.g., 0.02 = 2% OTM
+        decay = max(0.15, 1.0 - distance_pct * 15)  # 15% drop per 1% distance, floor 0.15
+        estimated_premium = spot * atm_pct * decay
+        # Floor: at least ₹8 per unit (deep OTM still has some value)
+        estimated_premium = max(estimated_premium, 8.0)
+
+        cost = estimated_premium * lot_size
+        required = cost * MARGIN_BUFFER
+
+        if balance >= required:
+            log.info(
+                "Premium est: %s strike=%d spot=%.0f → premium≈₹%.0f × %d lot = ₹%.0f "
+                "(need ₹%.0f, have ₹%.0f) ✅",
+                option_symbol, strike, spot, estimated_premium, lot_size, cost, required, balance,
+            )
+            return True
+        else:
+            log.info(
+                "Premium est: %s strike=%d spot=%.0f → premium≈₹%.0f × %d lot = ₹%.0f "
+                "> balance ₹%.0f ❌",
+                option_symbol, strike, spot, estimated_premium, lot_size, cost, balance,
+            )
+            return False
+    except Exception as e:
+        log.warning("Cannot estimate premium for %s: %s — assuming affordable", option_symbol, e)
+        return True  # Don't block on unforeseen errors
 
 
 def main() -> int:
@@ -79,12 +230,28 @@ def main() -> int:
                         try:
                             quote = broker.get_quote(best.underlying)
                             spot = quote.ltp
+                            # Detect Dhan synthetic fallback (~100) for stocks
+                            # that should be >500. Use 0 to trigger hardcoded spots.
+                            known_low = best.underlying.upper() in {
+                                "DIXON", "KFINTECH", "JUBLFOOD", "HPCL",
+                                "INDUSTOWER", "EXIDEIND", "ITC", "TATASTEEL",
+                            }
+                            if known_low and spot < 500:
+                                spot = 0.0
                         except Exception as qe:
                             _picker_log.warning(
                                 "Could not fetch spot for %s: %s",
                                 best.underlying, qe,
                             )
                 resolved = picker.resolve(best.symbol, spot_price=spot)
+
+                # ── Premium affordability check ──
+                if best.is_option:
+                    resolved = _find_affordable_option(
+                        picker, broker, best, resolved, spot,
+                        balance, candidates, cfg.trading_symbol,
+                        _picker_log,
+                    )
             else:
                 resolved = cfg.trading_symbol
 

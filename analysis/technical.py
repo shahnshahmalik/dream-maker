@@ -59,14 +59,45 @@ def _ema(series: pd.Series, period: int) -> pd.Series:
 
 
 def detect_trend(df: pd.DataFrame) -> Trend:
+    """Detect trend using EMA crossover and price action instead of strict monotonic requirements."""
     if len(df) < 10:
         return Trend.RANGE
-    highs = df["high"].tail(5)
-    lows = df["low"].tail(5)
-    if highs.is_monotonic_increasing and lows.is_monotonic_increasing:
+    
+    # Use EMAs for trend detection - more practical than strict monotonic requirements
+    ema_short = _ema(df["close"], 9)
+    ema_long = _ema(df["close"], 21)
+    
+    # Current values
+    ema_short_now = float(ema_short.iloc[-1])
+    ema_long_now = float(ema_long.iloc[-1])
+    close_now = float(df["close"].iloc[-1])
+    
+    # Previous values (3 periods ago for stability)
+    if len(df) >= 4:
+        ema_short_prev = float(ema_short.iloc[-4])
+        ema_long_prev = float(ema_long.iloc[-4])
+    else:
+        ema_short_prev = ema_short_now
+        ema_long_prev = ema_long_now
+    
+    # Price action confirmation - check if recent highs/lows support the trend
+    recent_highs = df["high"].tail(5)
+    recent_lows = df["low"].tail(5)
+    
+    # Bullish conditions: EMA crossover + price above short EMA + higher highs pattern
+    if (ema_short_now > ema_long_now and 
+        ema_short_now > ema_short_prev and  # Short EMA trending up
+        close_now > ema_short_now and      # Price above short EMA
+        float(recent_highs.iloc[-1]) > float(recent_highs.iloc[-3])):  # Recent higher high
         return Trend.UPTREND
-    if highs.is_monotonic_decreasing and lows.is_monotonic_decreasing:
+    
+    # Bearish conditions: EMA crossover + price below short EMA + lower lows pattern  
+    if (ema_short_now < ema_long_now and
+        ema_short_now < ema_short_prev and  # Short EMA trending down
+        close_now < ema_short_now and      # Price below short EMA
+        float(recent_lows.iloc[-1]) < float(recent_lows.iloc[-3])):   # Recent lower low
         return Trend.DOWNTREND
+    
     return Trend.RANGE
 
 
@@ -130,18 +161,18 @@ def _analyze_swing(
     resistance = float(htf["high"].tail(20).max())
     entry = float(ltf["close"].iloc[-1])
 
-    if htf_trend == Trend.UPTREND and above_200:
+    if htf_trend == Trend.UPTREND:  # Removed strict 200 EMA requirement
         direction = TradeDirection.LONG
         stop_loss = support
         tp1 = entry + (entry - stop_loss) * min_rr
         tp2 = entry + (entry - stop_loss) * (min_rr * 1.5)
-        bias = "HTF uptrend + above 200 EMA"
-    elif htf_trend == Trend.DOWNTREND and not above_200:
+        bias = f"HTF uptrend{'+ above 200 EMA' if above_200 else ''}"
+    elif htf_trend == Trend.DOWNTREND:  # Removed strict 200 EMA requirement
         direction = TradeDirection.SHORT
         stop_loss = resistance
         tp1 = entry - (stop_loss - entry) * min_rr
         tp2 = entry - (stop_loss - entry) * (min_rr * 1.5)
-        bias = "HTF downtrend + below 200 EMA"
+        bias = f"HTF downtrend{' + below 200 EMA' if not above_200 else ''}"
     else:
         return None
 
@@ -159,16 +190,15 @@ def _analyze_swing(
         return None
     if direction == TradeDirection.SHORT and stop_loss <= entry:
         return None
-    if not ltf_aligned:
-        return None
+    # Removed strict LTF alignment requirement - give partial credit instead
 
     strength = 0.0
-    strength += 0.35
-    strength += 0.25 if ltf_aligned else 0.0
-    strength += 0.20 if rr >= min_rr else 0.0
-    strength += 0.20 if (direction == TradeDirection.LONG and above_200) or (
+    strength += 0.40  # Base strength for having a trend (increased from 0.35)
+    strength += 0.20 if ltf_aligned else 0.0  # LTF alignment bonus (decreased from 0.25)
+    strength += 0.15 if rr >= min_rr else 0.05  # RR bonus (give partial credit)
+    strength += 0.25 if (direction == TradeDirection.LONG and above_200) or (
         direction == TradeDirection.SHORT and not above_200
-    ) else 0.0
+    ) else 0.10  # EMA bonus (give partial credit even if not aligned)
 
     return TechnicalContext(
         htf_trend=htf_trend,

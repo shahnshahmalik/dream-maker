@@ -11,11 +11,36 @@ from providers.base import BrokerProvider
 
 log = logging.getLogger("dream_maker.entry_watcher")
 
+# Symbols where get_quote returns synthetic data — use OHLCV fallback
+_SYNTHETIC_QUOTE_SYMBOLS = {"DIXON", "KFINTECH", "JUBLFOOD", "HPCL",
+                             "INDUSTOWER", "EXIDEIND", "ITC", "TATASTEEL"}
+
+
+def _is_stock_option(symbol: str) -> bool:
+    """Check if symbol is a stock option (vs index option)."""
+    import re
+    base = re.sub(r"\d{2}[A-Z]{3}.*", "", symbol.upper())
+    base = re.sub(r"\d+(CE|PE).*$", "", base)
+    return base in _SYNTHETIC_QUOTE_SYMBOLS
+
 
 class EntryWatcher:
     def __init__(self, broker: BrokerProvider, cfg: Config):
         self.broker = broker
         self.cfg = cfg
+
+    def _get_ltp(self, plan: TradePlan) -> float:
+        """Get live price, falling back to OHLCV when quote is synthetic."""
+        quote = self.broker.get_quote(plan.symbol)
+        if _is_stock_option(plan.symbol) and quote.ltp < 500:
+            # Dhan returns synthetic ~100 for stock options — use candle close
+            try:
+                candles = self.broker.get_ohlcv(plan.symbol, "5m", 1)
+                if candles:
+                    return candles[0].close
+            except Exception:
+                pass
+        return quote.ltp
 
     def tick(self, plans: list[TradePlan]) -> list[TradePlan]:
         ready: list[TradePlan] = []
@@ -61,8 +86,7 @@ class EntryWatcher:
     def _conditions_met(self, plan: TradePlan) -> bool:
         if plan.entry_price_low is None or plan.entry_price_high is None:
             return False
-        quote = self.broker.get_quote(self._quote_symbol(plan))
-        ltp = quote.ltp
+        ltp = self._get_ltp(plan)
         lo = min(plan.entry_price_low, plan.entry_price_high)
         hi = max(plan.entry_price_low, plan.entry_price_high)
         in_zone = lo <= ltp <= hi

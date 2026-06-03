@@ -73,8 +73,38 @@ class TradingEngine:
     def _recover_state(self) -> None:
         recovered = self.state_store.load_plans()
         if recovered:
-            log.info("Recovered %s plan(s) from state/active_plans.json", len(recovered))
-            self.plans.extend(recovered)
+            # Filter out stale plans from different trading symbols that could block the scanner
+            compatible_plans = []
+            for plan in recovered:
+                # Check if plan symbol matches current trading symbol or its underlying
+                normalized_trading = normalize_symbol(self.cfg.trading_symbol)
+                plan_symbol = normalize_symbol(plan.symbol) if plan.symbol else ""
+                
+                # For option contracts, extract underlying (e.g., NIFTY26JUN23250CE -> NIFTY) 
+                import re
+                plan_underlying = plan_symbol
+                if plan_symbol.upper().endswith("CE") or plan_symbol.upper().endswith("PE"):
+                    base = plan_symbol.upper().replace(" ", "")
+                    base = re.sub(r"\d{2}[A-Z]{3}.*", "", base)  # strip date+strike
+                    plan_underlying = base
+                
+                # Check compatibility
+                trading_base = normalized_trading.replace("50IDX", "").replace("IDX", "")[:5]
+                if (plan_symbol == normalized_trading or 
+                    plan_underlying.startswith(trading_base) or
+                    plan_symbol.startswith(trading_base)):
+                    compatible_plans.append(plan)
+                else:
+                    log.warning(
+                        "Discarding stale plan for %s (current symbol: %s)",
+                        plan.symbol, self.cfg.trading_symbol
+                    )
+            
+            if compatible_plans:
+                log.info("Recovered %s compatible plan(s) from state/active_plans.json", len(compatible_plans))
+                self.plans.extend(compatible_plans)
+            elif recovered:
+                log.info("No compatible plans recovered (discarded %s stale plans)", len(recovered))
 
         log_plan = self.state_store.load_from_trade_log(self.cfg.trading_symbol)
         if log_plan and log_plan.plan_id not in {p.plan_id for p in self.plans}:
@@ -370,9 +400,54 @@ class TradingEngine:
 
 
 def setup_logging() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
-        datefmt="%H:%M:%S",
+    import sys
+    import os
+    
+    # Ensure unbuffered output for background processes
+    if not sys.stdout.isatty():
+        # Force line buffering for non-TTY (background) execution
+        os.environ["PYTHONUNBUFFERED"] = "1"
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
+    
+    # Use FileHandler with immediate flush for background processes
+    log_file = os.getenv("LOG_FILE", "/tmp/dream-maker-engine.log")
+    
+    # Create custom formatter
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+        datefmt="%H:%M:%S"
     )
+    
+    # Set up root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    
+    # Clear any existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Add console handler (for interactive mode)
+    if sys.stdout.isatty():
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+    else:
+        # Add file handler with immediate flush (for background mode)
+        file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+        file_handler.setFormatter(formatter)
+        file_handler.setLevel(logging.INFO)
+        
+        # Force immediate flush after each log
+        class FlushingFileHandler(logging.FileHandler):
+            def emit(self, record):
+                super().emit(record)
+                self.flush()
+        
+        flush_handler = FlushingFileHandler(log_file, mode='a', encoding='utf-8')
+        flush_handler.setFormatter(formatter)
+        flush_handler.setLevel(logging.INFO)
+        root_logger.addHandler(flush_handler)
+    
+    # Reduce noise from HTTP client
     logging.getLogger("httpx").setLevel(logging.WARNING)

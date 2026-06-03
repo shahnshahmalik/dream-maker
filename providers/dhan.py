@@ -102,17 +102,16 @@ class DhanProvider(BrokerProvider):
     def _allowed_symbol(self, symbol: str) -> bool:
         sym = normalize_symbol(symbol)
         configured = normalize_symbol(self.cfg.trading_symbol)
-        if sym == configured:
-            return True
-        cb = underlying_base(configured)
-        if cb and cb in sym:
-            return True
-        sb = underlying_base(sym)
-        if sb and sb == cb:
-            return True
-        if sym.startswith(cb.replace("50", "")) or sym.startswith(cb[:5]):
-            return True
-        return False
+        configured_base = underlying_base(configured)
+        base = underlying_base(sym)
+        # Allow the configured symbol AND any F&O-eligible symbol
+        # (needed for symbol picker to query spot prices of candidate underlyings)
+        return (
+            sym == configured
+            or base == configured_base
+            or base == configured.replace("50", "")
+            or is_fno_eligible(sym)
+        )
 
     def _market_instrument(self, symbol: str) -> DhanInstrument | None:
         sym = normalize_symbol(symbol)

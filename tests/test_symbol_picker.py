@@ -111,7 +111,8 @@ class TestBuildCandidates:
 
     def test_includes_options_for_low_balance(self):
         picker = SymbolPicker(preferred=["NIFTY50IDX"])
-        candidates = picker.build_candidates(balance=5000.0)
+        # Balance above SKIP_INDEX_OPTIONS_BELOW (8000) enables tier 2
+        candidates = picker.build_candidates(balance=10000.0)
         symbols = {c.symbol for c in candidates}
         assert "NIFTYOPT" in symbols, f"Expected NIFTYOPT in candidates: {candidates}"
         # Should have tier 2 options
@@ -129,16 +130,18 @@ class TestBuildCandidates:
         assert 3 in tiers, f"Expected tier 3 candidates, got tiers: {tiers}"
 
     def test_full_pipeline_low_balance_selects_option(self):
-        """With ₹5K balance, the pipeline should select an option symbol."""
+        """With ₹5K balance (below index option threshold), stock options are picked."""
         picker = SymbolPicker(
             preferred=["SENSEX", "BANKNIFTY", "NIFTY50IDX"],
             fallback="NIFTY50IDX",
         )
         candidates = picker.build_candidates(balance=5000.0)
         selected = picker.select(5000.0, candidates)
-        # Should be an option (tier 2) — NOT an index future
-        assert selected == "NIFTYOPT" or selected != "NIFTY50IDX", (
-            f"Expected option symbol, got {selected}"
+        # With balance below SKIP_INDEX_OPTIONS_BELOW, tier 2 is skipped
+        # Should pick a stock option (tier 3) — NOT an index
+        assert "OPT" in selected, f"Expected option symbol, got {selected}"
+        assert selected not in ("NIFTYOPT", "BANKNIFTYOPT"), (
+            f"Index options should be skipped for low balance, got {selected}"
         )
 
     def test_full_pipeline_high_balance_selects_index_future(self):

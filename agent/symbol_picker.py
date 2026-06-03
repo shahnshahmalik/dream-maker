@@ -96,6 +96,15 @@ class SymbolPicker:
     # Index options — always available when futures don't fit
     INDEX_OPTIONS: ClassVar[list[str]] = ["NIFTY", "BANKNIFTY", "FINNIFTY"]
 
+    # Realistic option cost estimates (lot_size, min_capital_estimate)
+    # Based on actual OTM option premiums: premium × lot_size
+    # BALANCE must exceed min_capital × MARGIN_BUFFER (1.3) to be eligible
+    INDEX_OPTION_ESTIMATES: ClassVar[dict[str, tuple[int, float]]] = {
+        "NIFTY":      (25, 4500.0),    # lot 25, far OTM CE ~₹100-180 × 25 = ₹2.5K-4.5K
+        "BANKNIFTY":  (30, 15000.0),   # lot 30, OTM CE ~₹300-600 × 30 = ₹9K-18K
+        "FINNIFTY":   (40, 10000.0),   # lot 40, OTM CE ~₹150-300 × 40 = ₹6K-12K
+    }
+
     # Stock option underlyings (user-requested + defaults)
     STOCK_OPTIONS: ClassVar[dict[str, int]] = {
         # symbol: lot_size
@@ -109,8 +118,25 @@ class SymbolPicker:
         "TATASTEEL":   500,
     }
 
+    # Approximate spot prices for stock underlyings (used when Dhan LTP
+    # returns synthetic data). Updated periodically.
+    STOCK_SPOTS: ClassVar[dict[str, float]] = {
+        "DIXON":       13900.0,
+        "JUBLFOOD":      580.0,
+        "HPCL":          380.0,
+        "INDUSTOWER":    350.0,
+        "KFINTECH":     5400.0,
+        "EXIDEIND":      420.0,
+        "ITC":           420.0,
+        "TATASTEEL":     140.0,
+    }
+
     # Balance thresholds
     STOCK_OPTION_THRESHOLD: ClassVar[float] = 7000.0
+
+    # Skip index options below this balance — but lowered to allow
+    # ₹6K accounts since stock options lack Dhan chart/quote support
+    SKIP_INDEX_OPTIONS_BELOW: ClassVar[float] = 5000.0
 
     # Margin buffer — require balance to exceed min_capital by this factor
     MARGIN_BUFFER: ClassVar[float] = 1.3
@@ -142,19 +168,21 @@ class SymbolPicker:
                     )
                 )
 
-        # Tier 2: Index ATM weekly options (for low balance, or as fallback)
+        # Tier 2: Index ATM weekly options (only if balance is sufficient)
         has_affordable_futures = any(
             c.tier == 1 and balance >= c.min_capital_estimate * self.MARGIN_BUFFER
             for c in candidates
         )
-        if not has_affordable_futures:
+        can_afford_index_options = balance >= self.SKIP_INDEX_OPTIONS_BELOW
+        if not has_affordable_futures and can_afford_index_options:
             for idx in self.INDEX_OPTIONS:
                 if idx in prefs_upper or any(idx in p.upper() for p in prefs_upper):
+                    lot, est = self.INDEX_OPTION_ESTIMATES.get(idx, (25, 8000.0))
                     candidates.append(
                         InstrumentCandidate(
                             symbol=f"{idx}OPT",   # resolved later
-                            lot_size=25 if idx in ("NIFTY", "FINNIFTY") else 15,
-                            min_capital_estimate=3000.0,
+                            lot_size=lot,
+                            min_capital_estimate=est,
                             tier=2,
                             is_option=True,
                             underlying=idx,
@@ -211,8 +239,13 @@ class SymbolPicker:
             return f"{base}{yy}{month}FUT"
 
         # Generic options → resolve to actual ATM weekly contract
-        if sym.endswith("OPT") and spot_price > 0:
-            return SymbolPicker._resolve_option(sym.replace("OPT", ""), spot_price)
+        underlying = sym.replace("OPT", "")
+        if sym.endswith("OPT"):
+            if spot_price > 0:
+                return SymbolPicker._resolve_option(underlying, spot_price)
+            # Fall back to hardcoded spot for stocks (Dhan LTP returns synthetic)
+            if underlying in SymbolPicker.STOCK_SPOTS:
+                return SymbolPicker._resolve_option(underlying, SymbolPicker.STOCK_SPOTS[underlying])
 
         return sym
 
@@ -261,3 +294,69 @@ class SymbolPicker:
         symbol = f"{underlying.upper()}{yy}{month_code}{strike_str}CE"
         log.info("Resolved option: %s → %s (spot=%.1f, strike=%d)", underlying, symbol, spot, atm_strike)
         return symbol
+
+    @staticmethod
+    def _resolve_otm_strikes(underlying: str, spot: float, max_otm_steps: int = 6) -> list[str]:
+        """Generate increasingly OTM option symbols for premium fallback.
+
+        Returns a list of concrete option symbols from nearest-OTM to
+        farthest-OTM.  ATM is excluded (use ``_resolve_option`` for that).
+        The caller should iterate and check affordability via get_quote.
+
+        Args:
+            underlying: e.g. ``"NIFTY"`` or ``"BANKNIFTY"``
+            spot: current spot price of the underlying
+            max_otm_steps: how many OTM strikes to generate (default 6)
+
+        Returns:
+            e.g. ``["NIFTY25060523450CE", "NIFTY25060523500CE", ...]``
+        """
+        underlying_upper = underlying.upper()
+        if "NIFTY" in underlying_upper and "BANK" not in underlying_upper:
+            strike_interval = 50
+        elif "BANKNIFTY" in underlying_upper:
+            strike_interval = 100
+        elif "FINNIFTY" in underlying_upper:
+            strike_interval = 50
+        elif "SENSEX" in underlying_upper:
+            strike_interval = 100
+        else:
+            if spot <= 200:
+                strike_interval = 5
+            elif spot <= 1000:
+                strike_interval = 10
+            elif spot <= 5000:
+                strike_interval = 50
+            else:
+                strike_interval = 100
+
+        atm_strike = int(round(spot / strike_interval) * strike_interval)
+
+        # Expiry
+        today = datetime.now()
+        days_until_thursday = (3 - today.weekday()) % 7
+        if days_until_thursday == 0 and today.hour >= 15:
+            days_until_thursday = 7
+        expiry = today + timedelta(days=days_until_thursday)
+        yy = str(expiry.year)[-2:]
+        month_code = SymbolPicker._MONTH_CODES[expiry.month]
+
+        symbols: list[str] = []
+        for step in range(1, max_otm_steps + 1):
+            otm_strike = atm_strike + step * strike_interval
+            sym = f"{underlying_upper}{yy}{month_code}{otm_strike}CE"
+            symbols.append(sym)
+
+        return symbols
+
+    @staticmethod
+    def _strike_to_sym(underlying: str, strike: int) -> str:
+        """Build a concrete option symbol for a specific strike."""
+        today = datetime.now()
+        days_until_thursday = (3 - today.weekday()) % 7
+        if days_until_thursday == 0 and today.hour >= 15:
+            days_until_thursday = 7
+        expiry = today + timedelta(days=days_until_thursday)
+        yy = str(expiry.year)[-2:]
+        month_code = SymbolPicker._MONTH_CODES[expiry.month]
+        return f"{underlying.upper()}{yy}{month_code}{strike}CE"

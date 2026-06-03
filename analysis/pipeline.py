@@ -14,6 +14,7 @@ from models.trade_plan import EntryType, PlanStatus, TradeDirection, TradePlan, 
 from providers.base import BrokerProvider
 from risk.manager import RiskManager
 from risk.strike_selector import select_strike_and_size
+from utils.symbols import underlying_base
 
 log = logging.getLogger("dream_maker.pipeline")
 
@@ -49,17 +50,23 @@ class AnalysisPipeline:
             {"headlines": macro.headlines[:3], "summary": macro.summary},
         )
 
-        htf = self.broker.get_ohlcv(symbol, "1d", 250)
+        htf_symbol = symbol
+        is_option = symbol.upper().endswith("CE") or symbol.upper().endswith("PE")
+        if is_option:
+            # Extract underlying index from option contract (e.g., "NIFTY" from "NIFTY26JUN23550CE")
+            import re as _re
+            _base = symbol.upper().replace(" ", "")
+            _base = _re.sub(r"\d{2}[A-Z]{3}.*", "", _base)  # strip date+strike: 26JUN23550CE
+            _base = _re.sub(r"\d+(CE|PE).*$", "", _base)    # strip strike: 23550CE
+            htf_symbol = _base or underlying_base(symbol)
+            if htf_symbol != symbol:
+                log.info("Option detected — using %s for HTF analysis", htf_symbol)
+
+        htf = self.broker.get_ohlcv(htf_symbol, "1d", 250)
         ltf = self.broker.get_ohlcv(symbol, "15m", 100)
-        tech = analyze_technical(
-            htf,
-            ltf,
-            min_rr=self.cfg.min_rr_ratio,
-            scalp_enabled=self.cfg.scalp_enabled,
-            scalp_min_rr=self.cfg.scalp_min_rr_ratio,
-            scalp_max_sl_pct=self.cfg.scalp_max_sl_pct,
-            scalp_min_confirmations=self.cfg.scalp_min_confirmations,
-        )
+        if is_option and len(htf) < 20:
+            log.info("HTF using option underlying index (%d candles)", len(htf))
+        tech = analyze_technical(htf, ltf, min_rr=self.cfg.min_rr_ratio)
         setup_label = tech.setup_type.value if tech else "none"
         self.trade_logger.log(
             "PLAN", symbol, self.broker.name,
