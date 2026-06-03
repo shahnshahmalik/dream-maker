@@ -22,6 +22,7 @@ from models.orders import (
 )
 from providers.base import BrokerProvider
 from providers.dhan_instruments import DhanInstrument, resolve_market_data_instrument
+from providers.yahoo_finance import fetch_ohlcv as yahoo_fetch_ohlcv
 from utils.http import HttpClient
 
 from utils.symbols import is_fno_eligible, normalize_symbol, underlying_base
@@ -433,7 +434,11 @@ class DhanProvider(BrokerProvider):
                 raw=data,
             )
         except Exception as e:
-            log.error("place_order failed: %s", e)
+            detail = str(e)
+            if "Invalid IP" in detail or "401" in detail:
+                log.error("place_order DENIED: IP not whitelisted or auth invalid — %s", detail[:200])
+            else:
+                log.error("place_order failed: %s", detail[:200])
             if self.cfg.simulation_mode:
                 return OrderResult(
                     success=True,
@@ -510,6 +515,9 @@ class DhanProvider(BrokerProvider):
         inst = self._resolve_instrument(symbol)
         security_id = str(inst["securityId"])
         if not security_id.isdigit():
+            yahoo_candles = yahoo_fetch_ohlcv(symbol, timeframe, limit)
+            if yahoo_candles:
+                return yahoo_candles
             return self._synthetic_ohlcv(symbol, limit, timeframe)
 
         interval = TIMEFRAME_MAP.get(timeframe, "15")
@@ -550,12 +558,21 @@ class DhanProvider(BrokerProvider):
         except Exception as e:
             if symbol not in self._synthetic_warned:
                 log.warning(
-                    "Dhan chart data unavailable for %s (%s) — using synthetic candles; "
+                    "Dhan chart data unavailable for %s (%s) — trying Yahoo Finance; "
                     "check DHAN_CLIENT_ID and Data API access",
                     symbol,
                     e,
                 )
                 self._synthetic_warned.add(symbol)
+
+            # Try Yahoo Finance first
+            yahoo_candles = yahoo_fetch_ohlcv(symbol, timeframe, limit)
+            if yahoo_candles:
+                log.info("Yahoo Finance returned %d candles for %s (%s)", len(yahoo_candles), symbol, timeframe)
+                return yahoo_candles
+
+            # Last resort: synthetic candles
+            log.warning("Yahoo also failed for %s — using synthetic candles", symbol)
             return self._synthetic_ohlcv(symbol, limit, timeframe)
 
     @staticmethod
