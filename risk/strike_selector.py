@@ -43,18 +43,34 @@ def _margin_rate(symbol: str) -> float:
 
 
 def _lot_size(symbol: str) -> int:
+    """Return the minimum trading lot size for a symbol.
+
+    NSE June 2026 lot sizes (effective from May 2026 expiry onwards):
+      NIFTY: 65 (was 25)
+      BANKNIFTY: 30 (was 15)
+      FINNIFTY: 60 (was 40)
+      MIDCPNIFTY: 50 (was 75)
+    """
     upper = symbol.upper()
     if "BANKNIFTY" in upper:
-        return 15
-    if "NIFTY" in upper or "FINNIFTY" in upper or "MIDCP" in upper:
-        return 25
+        return 30
+    if "MIDCPNIFTY" in upper or "MIDCP" in upper:
+        return 50
+    if "SENSEX" in upper:
+        return 10
+    if "FINNIFTY" in upper:
+        return 60
+    if "NIFTY" in upper:
+        return 65
     return 1
 
 
 def _estimate_option_premium(ltp: float, strike: float, direction: TradeDirection) -> float:
     distance = abs(ltp - strike)
-    base = ltp * 0.015
-    return max(base, distance * 0.25, 20.0)
+    # Realistic option premium: ~0.8% of spot for weekly ATM NIFTY.
+    # was 0.015 (1.5%) — overestimated by ~2x, blocking trades on ₹16k balance.
+    base = ltp * 0.008
+    return max(base, distance * 0.15, 15.0)
 
 
 def select_strike_and_size(
@@ -79,6 +95,19 @@ def select_strike_and_size(
 
     if opt_match:
         strike = float(opt_match.group(1))
+        opt_type = opt_match.group(2).upper()  # "CE" or "PE"
+
+        # Indian retail brokers: you can only BUY options, not SELL/write.
+        # LONG → BUY CE, SHORT → BUY PE. If direction conflicts with option
+        # type (e.g. SHORT on a CE), flip to the correct instrument.
+        needs_ce = direction == TradeDirection.LONG
+        if needs_ce and opt_type == "PE":
+            trading_symbol = trading_symbol.upper().replace("PE", "CE", 1)
+            lot = _lot_size(trading_symbol)  # re-derive since underlying may differ
+        elif not needs_ce and opt_type == "CE":
+            trading_symbol = trading_symbol.upper().replace("CE", "PE", 1)
+            lot = _lot_size(trading_symbol)
+
         premium = _estimate_option_premium(spot, strike, direction)
         margin_per_lot = premium * lot
         max_lots = int(available_funds // margin_per_lot) if margin_per_lot else 0
@@ -108,7 +137,8 @@ def select_strike_and_size(
         margin_per_lot = premium * lot
         max_lots = int(available_funds // margin_per_lot) if margin_per_lot else 0
         if max_lots >= 1:
-            lots = min(max_lots, max(1, int(risk_amount // margin_per_lot)))
+            risk_lots = int(risk_amount // margin_per_lot) if margin_per_lot else 0
+            lots = min(max_lots, max(1, risk_lots))
             qty = lots * lot
             sym = f"{trading_symbol.replace('IDX', '').replace('50', '')}{int(strike)}{suffix}"
             return StrikeSelection(

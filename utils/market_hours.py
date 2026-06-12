@@ -55,6 +55,39 @@ def is_market_open(
     return is_trading_day(dt, holidays) and is_within_trading_hours(hours_str, dt)
 
 
+def is_within_trade_window(
+    trade_start_ist: str,
+    trade_end_ist: str,
+    dt: datetime | None = None,
+    holidays: list[str] | None = None,
+) -> bool:
+    """True if now is within the trade execution window AND it's a trading day.
+
+    Trade window is a subset of market hours — e.g. 09:30–15:15 to avoid
+    opening-volatility period (09:15–09:30).
+    """
+    dt = dt or now_ist()
+    if not is_trading_day(dt, holidays):
+        return False
+    start = parse_hours_range(f"{trade_start_ist}-23:59")[0]
+    end = parse_hours_range(f"00:00-{trade_end_ist}")[1]
+    t = dt.time()
+    return start <= t <= end
+
+
+def is_trade_window_ending(
+    trade_end_ist: str,
+    dt: datetime | None = None,
+    seconds_before: int = 60,
+) -> bool:
+    """True if we're within *seconds_before* of the trade window ending."""
+    dt = dt or now_ist()
+    end = parse_hours_range(f"00:00-{trade_end_ist}")[1]
+    end_dt = dt.replace(hour=end.hour, minute=end.minute, second=0, microsecond=0)
+    remaining = (end_dt - dt).total_seconds()
+    return 0 < remaining <= seconds_before
+
+
 def next_market_open(
     hours_str: str,
     dt: datetime | None = None,

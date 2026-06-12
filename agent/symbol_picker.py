@@ -87,9 +87,9 @@ class SymbolPicker:
     # Known index futures with estimated MIS intraday margin (approx 1 lot)
     INDEX_FUTURES: ClassVar[dict[str, tuple[int, float]]] = {
         "SENSEX": (10, 45000.0),      # lot 10, ~₹45K MIS margin
-        "BANKNIFTY": (15, 35000.0),   # lot 15, ~₹35K MIS margin
-        "NIFTY": (25, 30000.0),       # lot 25, ~₹30K MIS margin
-        "FINNIFTY": (40, 25000.0),    # lot 40, ~₹25K MIS margin
+        "BANKNIFTY": (30, 35000.0),   # lot 30, ~₹35K MIS margin
+        "NIFTY": (65, 30000.0),       # lot 65, ~₹30K MIS margin
+        "FINNIFTY": (60, 25000.0),    # lot 60, ~₹25K MIS margin
         "MIDCPNIFTY": (50, 20000.0),  # lot 50, ~₹20K MIS margin
     }
 
@@ -100,9 +100,9 @@ class SymbolPicker:
     # Based on actual OTM option premiums: premium × lot_size
     # BALANCE must exceed min_capital × MARGIN_BUFFER (1.3) to be eligible
     INDEX_OPTION_ESTIMATES: ClassVar[dict[str, tuple[int, float]]] = {
-        "NIFTY":      (25, 4500.0),    # lot 25, far OTM CE ~₹100-180 × 25 = ₹2.5K-4.5K
+        "NIFTY":      (65, 4500.0),    # lot 65, far OTM CE ~₹50-80 × 65 = ₹3.3K-5.2K
         "BANKNIFTY":  (30, 15000.0),   # lot 30, OTM CE ~₹300-600 × 30 = ₹9K-18K
-        "FINNIFTY":   (40, 10000.0),   # lot 40, OTM CE ~₹150-300 × 40 = ₹6K-12K
+        "FINNIFTY":   (60, 10000.0),   # lot 60, OTM CE ~₹150-300 × 60 = ₹9K-18K
     }
 
     # Stock option underlyings (user-requested + defaults)

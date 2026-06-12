@@ -63,7 +63,10 @@ class AnalysisPipeline:
                 log.info("Option detected — using %s for HTF analysis", htf_symbol)
 
         htf = self.broker.get_ohlcv(htf_symbol, "1d", 250)
-        ltf = self.broker.get_ohlcv(symbol, "15m", 100)
+        # For options, use the underlying index for LTF analysis — option candles
+        # are too volatile (₹140→₹2 in hours). Only use option LTP for execution.
+        ltf_symbol = htf_symbol if is_option else symbol
+        ltf = self.broker.get_ohlcv(ltf_symbol, "15m", 100)
         if is_option and len(htf) < 20:
             log.info("HTF using option underlying index (%d candles)", len(htf))
         tech = analyze_technical(htf, ltf, min_rr=self.cfg.min_rr_ratio)
@@ -109,6 +112,9 @@ class AnalysisPipeline:
 
         funds = self.broker.get_funds()
         quote = self.broker.get_quote(symbol)
+        # For options, use underlying index close as spot for premium estimation,
+        # NOT the option LTP (which can be ₹14 for a far-OTM, skewing margin 100x).
+        spot_for_pricing = float(htf[-1].close) if is_option else (quote.ltp or tech.entry)
         strike = select_strike_and_size(
             symbol,
             tech.direction,
@@ -116,7 +122,7 @@ class AnalysisPipeline:
             tech.stop_loss,
             available_funds=funds.available,
             risk_pct=self.cfg.risk_pct_per_trade,
-            ltp=quote.ltp,
+            ltp=spot_for_pricing,
         )
         if not strike.affordable or strike.qty <= 0:
             return PipelineResult(symbol, macro, tech, fund.summary, None, strike.reason)
@@ -141,25 +147,52 @@ class AnalysisPipeline:
         if is_scalp:
             tol = min(tol, self.cfg.scalp_max_sl_pct / 100.0 * 0.5)
 
+        # ── Option premium scaling: tech levels are in NIFTY points (underlying).
+        # Convert to option premium equivalents so entry_watcher matches correctly.
+        option_ltp = quote.ltp
+        if is_option and option_ltp > 0 and tech.entry > 0:
+            nifty_entry = tech.entry
+            sl_pct = abs(nifty_entry - tech.stop_loss) / nifty_entry
+            tp1_pct = abs(tech.tp1 - nifty_entry) / nifty_entry
+            tp2_pct = abs(tech.tp2 - nifty_entry) / nifty_entry if tech.tp2 else 0
+            if tech.direction == TradeDirection.LONG:
+                opt_sl = option_ltp * (1 - sl_pct)
+                opt_tp1 = option_ltp * (1 + tp1_pct)
+                opt_tp2 = option_ltp * (1 + tp2_pct) if tp2_pct else 0
+            else:
+                opt_sl = option_ltp * (1 + sl_pct)
+                opt_tp1 = option_ltp * (1 - tp1_pct)
+                opt_tp2 = option_ltp * (1 - tp2_pct) if tp2_pct else 0
+            opt_entry = option_ltp
+            log.info(
+                "Option scaling: NIFTY entry=%.0f→opt=%.2f SL=%.0f→%.2f TP=%.0f→%.2f",
+                nifty_entry, opt_entry, tech.stop_loss, opt_sl, tech.tp1, opt_tp1,
+            )
+        else:
+            opt_entry = tech.entry
+            opt_sl = tech.stop_loss
+            opt_tp1 = tech.take_profit_1
+            opt_tp2 = tech.take_profit_2
+
         plan = TradePlan(
             symbol=strike.tradable_symbol,
             direction=tech.direction,
             timeframe="15m",
             bias_source=tech.bias_source,
-            entry_zone=f"{tech.entry:.2f}",
+            entry_zone=f"{opt_entry:.2f}",
             entry_type=EntryType.LIMIT,
-            stop_loss=tech.stop_loss,
+            stop_loss=opt_sl,
             stop_loss_reason=f"HTF {'support' if tech.direction == TradeDirection.LONG else 'resistance'}",
-            take_profit_1=tech.tp1,
+            take_profit_1=opt_tp1,
             tp1_exit_pct=50.0,
-            take_profit_2=tech.tp2,
+            take_profit_2=opt_tp2,
             tp2_exit_pct=50.0,
             risk_amount=sizing.risk_amount,
             position_size=qty,
             rr_ratio=tech.rr_ratio,
             status=PlanStatus.WAITING_ENTRY,
-            entry_price_low=tech.entry * (1 - tol),
-            entry_price_high=tech.entry * (1 + tol),
+            entry_price_low=opt_entry * (1 - tol),
+            entry_price_high=opt_entry * (1 + tol),
             strike_price=strike.strike,
             signal_strength=tech.signal_strength,
             macro_env=macro.environment.value,
@@ -170,6 +203,16 @@ class AnalysisPipeline:
                 "confirmations": tech.confirmations,
             },
         )
+        # ── BUY_ONLY bracket flip: SHORT CE → BUY PE needs mirrored SL/TP ──
+        # select_strike_and_size flips CE→PE but keeps SHORT direction.
+        # A LONG PE needs SL below entry, TP above, and LONG direction for validation.
+        if (plan.direction == TradeDirection.SHORT
+                and plan.symbol.upper().endswith("PE")):
+            entry = plan.entry_target()
+            plan.stop_loss = entry - abs(entry - plan.stop_loss)
+            plan.take_profit_1 = entry + abs(entry - plan.take_profit_1)
+            plan.take_profit_2 = entry + abs(entry - plan.take_profit_2)
+            plan.direction = TradeDirection.LONG
         ok, reason = validate_plan(
             plan,
             min_rr=self.cfg.min_rr_ratio,

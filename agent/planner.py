@@ -23,7 +23,7 @@ SETUP_PROMPT = """You are a systematic F&O trade planner. Given technical contex
   "take_profit_1": number,
   "take_profit_2": number
 }
-approve=false if setup is weak. Swing setups need R:R >= 1:3. Momentum scalps need R:R >= 1:1.2 with tight SL.
+approve=false if setup is weak. Swing setups need R:R >= 1:2. Momentum scalps need R:R >= 1:1.2 with tight SL.
 Never suggest naked entries — stop_loss and take_profit levels are mandatory."""
 
 
@@ -104,6 +104,24 @@ class TradePlanner:
             return plan
 
         user_msg = json.dumps({"plan": plan.to_dict(), "technical": tech_summary})
+        # When BUY_ONLY (low balance), SHORT+PE = BUY put (bearish), LONG+CE = BUY call (bullish).
+        # The AI needs to know the actual market bias, not the order side.
+        # Also mirror SL/TP levels: plan stores SHORT orientation (SL above, TP below),
+        # but a BUY PE is LONG the option (SL below, TP above).
+        if plan.symbol.upper().endswith("PE") and plan.direction.value == "SHORT":
+            plan_dict = plan.to_dict()
+            entry = plan.entry_target()
+            # Mirror SL/TP around entry for the AI's context
+            plan_dict["stop_loss"] = entry - abs(entry - plan.stop_loss)
+            plan_dict["take_profit_1"] = entry + abs(entry - plan.take_profit_1)
+            plan_dict["take_profit_2"] = entry + abs(entry - plan.take_profit_2)
+            user_msg = json.dumps({
+                "plan": plan_dict,
+                "technical": tech_summary,
+                "_note": "This account is BUY_ONLY. SHORT direction + PE symbol = BUYING a put (bearish bet). "
+                         "The SL/TP levels shown are already mirrored for a LONG option position. "
+                         "SL below entry, TP above entry — the put gains value when the underlying drops.",
+            })
         try:
             from llm.chat_completions import chat_completion, chat_config_for_provider
 
@@ -161,9 +179,30 @@ class TradePlanner:
         tol = self.cfg.entry_zone_tolerance_pct / 100.0
         plan.entry_price_low = float(data.get("entry_low", entry * (1 - tol)))
         plan.entry_price_high = float(data.get("entry_high", entry * (1 + tol)))
+
+        # Enforce minimum spread: AI sometimes returns entry_low == entry_high
+        # (e.g., 184.00–184.00), making the zone impossible to hit.
+        ai_spread = abs(plan.entry_price_high - plan.entry_price_low)
+        min_spread = entry * tol * 0.5
+        if ai_spread < min_spread:
+            mid = (plan.entry_price_low + plan.entry_price_high) / 2
+            plan.entry_price_low = mid * (1 - tol)
+            plan.entry_price_high = mid * (1 + tol)
+            log.info(
+                "AI gave zero-width zone (%.2f–%.2f) — spread to [%.2f, %.2f]",
+                float(data.get("entry_low", 0)), float(data.get("entry_high", 0)),
+                plan.entry_price_low, plan.entry_price_high,
+            )
         plan.stop_loss = float(data.get("stop_loss", plan.stop_loss))
         plan.take_profit_1 = float(data.get("take_profit_1", plan.take_profit_1))
         plan.take_profit_2 = float(data.get("take_profit_2", plan.take_profit_2))
+
+        # Mirror SL/TP back: AI sees LONG-option levels (SL below, TP above),
+        # but plan stores SHORT-orientation (SL above, TP below).
+        if plan.symbol.upper().endswith("PE") and plan.direction.value == "SHORT":
+            plan.stop_loss = entry + abs(entry - plan.stop_loss)
+            plan.take_profit_1 = entry - abs(entry - plan.take_profit_1)
+            plan.take_profit_2 = entry - abs(entry - plan.take_profit_2)
         sl_dist = abs(entry - plan.stop_loss)
         tp_dist = abs(plan.take_profit_1 - entry)
         plan.rr_ratio = tp_dist / sl_dist if sl_dist else plan.rr_ratio

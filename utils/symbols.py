@@ -108,3 +108,23 @@ def require_fno_symbol(symbol: str) -> str:
             "Set an index/stock with NSE F&O (e.g. NIFTY50IDX, NIFTY25JUNFUT, BANKNIFTY)."
         )
     return s
+
+
+def same_underlying_strike(a: str, b: str) -> bool:
+    """Check if two option symbols share the same underlying and strike (ignoring CE/PE)."""
+    import re as _re
+
+    a = normalize_symbol(a)
+    b = normalize_symbol(b)
+
+    def _parts(s: str) -> tuple[str, str] | None:
+        m = _re.match(r"^([A-Z]+)(\d{2}[A-Z]{3})(\d+)(CE|PE)$", s)
+        if m:
+            return (m.group(1) + m.group(2), m.group(3))  # e.g., ("NIFTY26JUN", "23350")
+        return None
+
+    pa = _parts(a)
+    pb = _parts(b)
+    if pa and pb:
+        return pa == pb
+    return False

@@ -210,7 +210,8 @@ def validate_plan(
     max_sl_capital_pct: float = 2.0,
 ) -> tuple[bool, str]:
     floor = required_min_rr(plan, min_rr=min_rr, min_rr_scalp=min_rr_scalp)
-    if plan.rr_ratio < floor:
+    # Use a small epsilon to avoid floating-point false rejections (e.g., 2.0 < 2.0 → False, but 1.9999 < 2.0 → True)
+    if plan.rr_ratio < floor - 0.001:
         return False, f"R:R {plan.rr_ratio:.2f} below minimum {floor}"
     if plan.position_size <= 0:
         return False, "Position size must be positive"
@@ -219,5 +220,5 @@ def validate_plan(
     return validate_bracket(plan)
 
 
-def is_strong_signal(plan: TradePlan, min_strength: float) -> bool:
-    return plan.signal_strength >= min_strength and plan.rr_ratio >= 3.0
+def is_strong_signal(plan: TradePlan, min_strength: float, min_rr: float = 2.0) -> bool:
+    return plan.signal_strength >= min_strength and plan.rr_ratio >= min_rr

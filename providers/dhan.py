@@ -69,6 +69,27 @@ class DhanProvider(BrokerProvider):
         )
         self._instrument_cache: dict[str, dict[str, Any]] = {}
         self._synthetic_warned: set[str] = set()
+        self._auth_failure_count: int = 0
+        self._max_auth_failures: int = 3
+        self._auth_blocked: bool = False
+
+    def _is_auth_error(self, error: Exception | str) -> bool:
+        """Check if an error is an authentication failure (expired token, etc.)."""
+        msg = str(error)
+        return any(tag in msg for tag in (
+            "DH-901", "Invalid_Authentication", "token is invalid",
+            "token has expired", "access token is invalid",
+        ))
+
+    def _record_auth_failure(self, context: str) -> None:
+        self._auth_failure_count += 1
+        if self._auth_failure_count >= self._max_auth_failures and not self._auth_blocked:
+            self._auth_blocked = True
+            log.critical(
+                "AUTH CIRCUIT BREAKER: %s — %d consecutive auth failures. "
+                "All broker calls blocked until restart. Refresh Dhan token in .env.",
+                context, self._auth_failure_count,
+            )
 
     def close(self) -> None:
         self._http.close()
@@ -130,6 +151,29 @@ class DhanProvider(BrokerProvider):
             return self._instrument_cache[sym]
 
         market = self._market_instrument(sym)
+
+        # ── Option contracts: scrip_master always wins ──────────────
+        is_option = bool(re.search(r"(CE|PE)$", sym, re.IGNORECASE)) or \
+                     (market is not None and market.instrument in ("OPTIDX", "OPTSTK"))
+        if is_option:
+            scrip_sid = self._lookup_option_security_id(sym)
+            if scrip_sid and isinstance(scrip_sid, int) and scrip_sid > 0:
+                lot_from_db = self._lookup_option_lot_size(sym)
+                lot = lot_from_db if lot_from_db else (market.lot_size if market else 65)
+                info = {
+                    "symbol": sym,
+                    "exchangeSegment": "NSE_FNO",
+                    "securityId": str(scrip_sid),
+                    "instrument": market.instrument if market and market.instrument in ("OPTIDX", "OPTSTK") else "OPTIDX",
+                    "lotSize": lot,
+                }
+                self._instrument_cache[sym] = info
+                log.info("Resolved option via scrip master: %s → sid=%d lot=%d",
+                        sym, scrip_sid, lot)
+                return info
+            # Scrip master failed — fall through to market info below
+            log.warning("Option %s not found in scrip master — using market fallback", sym)
+
         if market and market.security_id:
             info = {
                 "symbol": sym,
@@ -141,35 +185,14 @@ class DhanProvider(BrokerProvider):
             self._instrument_cache[sym] = info
             return info
 
-        # --- For option contracts: try scrip master lookup ---
-        is_option = "OPTIDX" in (market.instrument if market else "") or \
-                     (market.instrument == "OPTSTK" if market else False) or \
-                     bool(re.search(r"(CE|PE)$", sym, re.IGNORECASE))
-        if is_option:
-            scrip_sid = self._lookup_option_security_id(sym)
-            if scrip_sid and isinstance(scrip_sid, int) and scrip_sid > 0:
-                lot_from_db = self._lookup_option_lot_size(sym)
-                lot = lot_from_db if lot_from_db else (market.lot_size if market else 1)
-                info = {
-                    "symbol": sym,
-                    "exchangeSegment": "NSE_FNO",
-                    "securityId": str(scrip_sid),
-                    "instrument": market.instrument if market else "OPTIDX",
-                    "lotSize": lot,
-                }
-                self._instrument_cache[sym] = info
-                log.info("Resolved option via scrip master: %s → sid=%d lot=%d",
-                        sym, scrip_sid, lot)
-                return info
-
-        # Use market info if available (e.g., option contracts with no numeric ID)
+        # ── Last-resort fallback ───────────────────────────────────
         lot_size: int = 1
         instrument: str = "FUTSTK"
         if market:
             lot_size = market.lot_size
             instrument = market.instrument
         elif "NIFTY" in sym:
-            lot_size = 15 if "BANKNIFTY" in sym else 25
+            lot_size = 30 if "BANKNIFTY" in sym else 65
             instrument = "FUTIDX"
 
         info = {
@@ -290,8 +313,11 @@ class DhanProvider(BrokerProvider):
         return from_date, to_date
 
     def get_funds(self) -> Funds:
+        if self._auth_blocked:
+            return Funds(available=0.0, invested=0.0, total=0.0, currency="INR")
         try:
             data = self._http.get("/v2/fundlimit")
+            self._auth_failure_count = 0  # reset on success
             return Funds(
                 available=float(data.get("availabelBalance") or data.get("availableBalance") or 0),
                 invested=float(data.get("utilizedAmount") or 0),
@@ -300,6 +326,8 @@ class DhanProvider(BrokerProvider):
             )
         except Exception as e:
             log.warning("get_funds failed (%s); returning simulation defaults", e)
+            if self._is_auth_error(e):
+                self._record_auth_failure("get_funds")
             return Funds(available=100_000.0, invested=0.0, total=100_000.0, currency="INR")
 
     def get_positions(self) -> list[Position]:
@@ -367,6 +395,11 @@ class DhanProvider(BrokerProvider):
         sl: float | None = None,
         tp: float | None = None,
     ) -> OrderResult:
+        if self._auth_blocked:
+            return OrderResult(
+                success=False, order_id=None,
+                message="Auth blocked — Dhan token expired. Restart after refreshing .env.",
+            )
         inst = self._resolve_instrument(symbol)
         payload: dict[str, Any] = {
             "dhanClientId": self.cfg.dhan_client_id or "",
@@ -387,6 +420,7 @@ class DhanProvider(BrokerProvider):
             payload["orderFlag"] = "PAPER"
 
         try:
+            log.info("place_order payload: %s", {k: v for k, v in payload.items() if k != "dhanClientId"})
             data = self._http.post("/v2/orders", json=payload)
             order_id = str(data.get("orderId") or data.get("order_id") or f"PAPER-{symbol}-{qty}")
             sl_id = None
@@ -395,25 +429,36 @@ class DhanProvider(BrokerProvider):
             if sl is not None and order_type.upper() not in {"STOP_LOSS", "STOP_LOSS_MARKET"}:
                 sl_side = "SELL" if side.upper() == "BUY" else "BUY"
                 sl_payload = {
-                    **payload,
+                    "dhanClientId": payload["dhanClientId"],
                     "transactionType": sl_side,
+                    "exchangeSegment": payload["exchangeSegment"],
+                    "productType": payload["productType"],
                     "orderType": "STOP_LOSS_MARKET",
-                    "triggerPrice": sl,
+                    "validity": payload["validity"],
+                    "tradingSymbol": payload["tradingSymbol"],
+                    "securityId": payload["securityId"],
                     "quantity": qty,
+                    "triggerPrice": sl,
                 }
                 if self.cfg.simulation_mode:
                     sl_payload["orderFlag"] = "PAPER"
+                log.info("SL payload: %s", {k: v for k, v in sl_payload.items() if k != "dhanClientId"})
                 sl_data = self._http.post("/v2/orders", json=sl_payload)
                 sl_id = str(sl_data.get("orderId") or "")
 
             if tp is not None:
                 tp_side = "SELL" if side.upper() == "BUY" else "BUY"
                 tp_payload = {
-                    **payload,
+                    "dhanClientId": payload["dhanClientId"],
                     "transactionType": tp_side,
+                    "exchangeSegment": payload["exchangeSegment"],
+                    "productType": payload["productType"],
                     "orderType": "LIMIT",
-                    "price": tp,
+                    "validity": payload["validity"],
+                    "tradingSymbol": payload["tradingSymbol"],
+                    "securityId": payload["securityId"],
                     "quantity": qty,
+                    "price": tp,
                 }
                 if self.cfg.simulation_mode:
                     tp_payload["orderFlag"] = "PAPER"
@@ -424,11 +469,25 @@ class DhanProvider(BrokerProvider):
                 sl_id = sl_id or f"SIM-SL-{symbol}-{qty}"
                 tp_id = tp_id or f"SIM-TP-{symbol}-{qty}"
 
+            # Reset auth failure counter on successful order placement
+            self._auth_failure_count = 0
+
+            # Extract actual fill price from Dhan response for MARKET orders
+            fill_price = price  # limit orders use the limit price
+            if price is None:   # MARKET orders — extract from broker response
+                fill_price = float(
+                    data.get("averageTradedPrice")
+                    or data.get("filledPrice")
+                    or data.get("average_price")
+                    or data.get("tradedPrice")
+                    or 0
+                ) or None
+
             return OrderResult(
                 success=True,
                 order_id=order_id,
                 message="Order placed",
-                fill_price=price,
+                fill_price=fill_price,
                 sl_order_id=sl_id,
                 tp_order_id=tp_id,
                 raw=data,
@@ -437,6 +496,7 @@ class DhanProvider(BrokerProvider):
             detail = str(e)
             if "Invalid IP" in detail or "401" in detail:
                 log.error("place_order DENIED: IP not whitelisted or auth invalid — %s", detail[:200])
+                self._record_auth_failure(f"place_order {symbol}")
             else:
                 log.error("place_order failed: %s", detail[:200])
             if self.cfg.simulation_mode:
@@ -499,8 +559,10 @@ class DhanProvider(BrokerProvider):
                 "/v2/marketfeed/ltp",
                 json={segment: [sec_int]},
             )
+            log.debug("Raw LTP response for %s (sid=%s): %s", symbol, security_id, data)
             ltp = self._extract_ltp(data, segment, security_id)
             if ltp <= 0:
+                log.warning("Empty LTP for %s — raw response: %s", symbol, data)
                 raise ValueError("empty quote")
             return Quote(symbol=symbol, ltp=ltp, bid=ltp, ask=ltp, volume=0)
         except Exception as e:

@@ -8,11 +8,11 @@ from typing import Callable
 
 from config import Config
 from audit.trade_logger import TradeLogger
-from models.trade_plan import PlanStatus, TradeDirection, TradePlan, validate_bracket
+from models.trade_plan import EntryType, PlanStatus, TradeDirection, TradePlan, validate_bracket
 from providers.base import BrokerProvider
 from providers.groww import GrowwProvider
 from risk.limits import LimitsGuard
-from utils.market_hours import is_market_open, is_square_off_time
+from utils.market_hours import is_market_open, is_square_off_time, is_within_trade_window
 
 log = logging.getLogger("dream_maker.executor")
 
@@ -81,11 +81,13 @@ class TradeExecutor:
         cfg: Config,
         trade_logger: TradeLogger,
         limits: LimitsGuard,
+        balance_manager=None,  # BalanceManager — optional for backward compat
     ):
         self.broker = broker
         self.cfg = cfg
         self.trade_logger = trade_logger
         self.limits = limits
+        self._balance = balance_manager
         self._groww_monitor: GrowwPriceMonitor | None = None
         if isinstance(broker, GrowwProvider):
             self._groww_monitor = GrowwPriceMonitor(broker)
@@ -94,11 +96,17 @@ class TradeExecutor:
         if plan.status != PlanStatus.PENDING:
             return plan
 
-        from utils.symbols import normalize_symbol
+        log.info("EXEC: %s direction=%s entry=%.2f sl=%.2f tp=%.2f open=%d",
+                 plan.symbol, plan.direction.value, plan.entry_target(),
+                 plan.stop_loss, plan.take_profit_1, open_count)
 
-        if normalize_symbol(plan.symbol) != self.cfg.trading_symbol:
+        from utils.symbols import normalize_symbol, same_underlying_strike
+
+        if normalize_symbol(plan.symbol) != self.cfg.trading_symbol and not same_underlying_strike(
+            plan.symbol, self.cfg.trading_symbol
+        ):
             log.warning(
-                "Rejecting plan for %s — only TRADING_SYMBOL=%s is allowed",
+                "Rejecting plan for %s — only TRADING_SYMBOL=%s (or same-strike CE/PE flip) is allowed",
                 plan.symbol, self.cfg.trading_symbol,
             )
             plan.status = PlanStatus.INVALIDATED
@@ -106,6 +114,19 @@ class TradeExecutor:
 
         if not is_market_open(self.cfg.trading_hours_ist, holidays=self.cfg.market_holidays):
             log.info("Outside trading hours — skipping %s", plan.symbol)
+            return plan
+
+        if not is_within_trade_window(
+            self.cfg.trade_window_start_ist,
+            self.cfg.trade_window_end_ist,
+            holidays=self.cfg.market_holidays,
+        ):
+            log.info(
+                "Outside trade window (%s–%s IST) — skipping %s",
+                self.cfg.trade_window_start_ist,
+                self.cfg.trade_window_end_ist,
+                plan.symbol,
+            )
             return plan
 
         ok, reason = self.limits.can_open_trade(open_count)
@@ -120,10 +141,42 @@ class TradeExecutor:
             plan.status = PlanStatus.INVALIDATED
             return plan
 
-        side = "BUY" if plan.direction == TradeDirection.LONG else "SELL"
-        entry_price = float(plan.entry_zone)
+        # Balance-aware side: low-balance accounts → BUY only (CE/PE flip handled upstream)
+        if self._balance is not None:
+            side = self._balance.get_side(plan.direction, funds.available)
+        else:
+            side = "BUY" if plan.direction == TradeDirection.LONG else "SELL"
 
-        bracket_ok, bracket_reason = validate_bracket(plan, entry_price)
+        # MARKET orders have no limit price — fill at best available
+        if plan.entry_type == EntryType.MARKET:
+            entry_price = None
+        else:
+            entry_price = float(plan.entry_zone)
+
+        # ── BUY_ONLY bracket flip: CE-computed SL/TP need mirroring for PE ──
+        # When BUY_ONLY flips SHORT CE → BUY PE, the SL/TP levels were computed
+        # for the CE direction (SL above entry, TP below). A LONG PE needs them
+        # reversed: SL below entry, TP above. This must happen BEFORE bracket
+        # validation and order placement — the trailing service runs too late.
+        entry_ref = entry_price or plan.entry_target()
+        if (plan.direction == TradeDirection.SHORT
+                and plan.symbol.upper().endswith("PE")
+                and entry_ref > 0):
+            sl = plan.stop_loss
+            tp1 = plan.take_profit_1
+            tp2 = plan.take_profit_2
+            sl_dist = abs(entry_ref - sl)
+            plan.stop_loss = entry_ref - sl_dist
+            plan.take_profit_1 = entry_ref + abs(entry_ref - tp1)
+            plan.take_profit_2 = entry_ref + abs(entry_ref - tp2)
+            side = "BUY"  # BUY_ONLY forces buy side for PE positions
+            log.info(
+                "BUY_ONLY bracket flip: SHORT CE→LONG PE. "
+                "SL %.2f→%.2f TP1 %.2f→%.2f TP2 %.2f→%.2f",
+                sl, plan.stop_loss, tp1, plan.take_profit_1, tp2, plan.take_profit_2,
+            )
+
+        bracket_ok, bracket_reason = validate_bracket(plan, float(plan.entry_zone))
         if not bracket_ok:
             log.error("Bracket validation failed for %s: %s — entry blocked (never naked)", plan.symbol, bracket_reason)
             plan.status = PlanStatus.INVALIDATED
@@ -254,7 +307,22 @@ class TradeExecutor:
 
     def partial_exit(self, plan: TradePlan, pct: float) -> None:
         qty = max(1, int(plan.position_size * pct / 100))
-        side = "SELL" if plan.direction == TradeDirection.LONG else "BUY"
+
+        # Account for BUY_ONLY flip — same logic as close_plan
+        if self._balance is not None:
+            is_buy_only_pe = (
+                plan.symbol.upper().endswith("PE")
+                and plan.direction == TradeDirection.SHORT
+            )
+            if is_buy_only_pe:
+                side = "SELL"
+            elif plan.direction == TradeDirection.LONG:
+                side = "SELL"
+            else:
+                side = "BUY"
+        else:
+            side = "SELL" if plan.direction == TradeDirection.LONG else "BUY"
+
         result = self.broker.place_order(plan.symbol, side, qty, "MARKET")
         plan.position_size -= qty
         self.trade_logger.log(
@@ -267,14 +335,44 @@ class TradeExecutor:
         if plan.position_size <= 0:
             plan.status = PlanStatus.CLOSED
             return
-        side = "SELL" if plan.direction == TradeDirection.LONG else "BUY"
-        if plan.order_id:
-            self.broker.cancel_order(plan.order_id)
-        if plan.sl_order_id:
-            self.broker.cancel_order(plan.sl_order_id)
-        if plan.tp_order_id:
-            self.broker.cancel_order(plan.tp_order_id)
-        result = self.broker.place_order(plan.symbol, side, plan.position_size, "MARKET")
+
+        # Determine close side — account for BUY_ONLY CE/PE flips.
+        # When BUY_ONLY + SHORT bias → we BUY a PE (LONG the option).
+        # Closing means SELL-ing the PE, regardless of plan.direction.
+        if self._balance is not None:
+            # BUY_ONLY flip: SHORT+PE → actual position is LONG the option → close with SELL
+            is_buy_only_pe = (
+                plan.symbol.upper().endswith("PE")
+                and plan.direction == TradeDirection.SHORT
+            )
+            if is_buy_only_pe:
+                side = "SELL"  # close LONG PE position
+            elif plan.direction == TradeDirection.LONG:
+                side = "SELL"
+            else:
+                side = "BUY"
+        else:
+            side = "SELL" if plan.direction == TradeDirection.LONG else "BUY"
+
+        # Cancel open bracket orders (best-effort — don't crash if broker fails)
+        for oid, label in [
+            (plan.order_id, "entry"),
+            (plan.sl_order_id, "SL"),
+            (plan.tp_order_id, "TP"),
+        ]:
+            if oid:
+                try:
+                    self.broker.cancel_order(oid)
+                except Exception as e:
+                    log.warning("cancel_order(%s) failed for %s: %s", label, plan.symbol, e)
+
+        # Place closing MARKET order
+        try:
+            result = self.broker.place_order(plan.symbol, side, plan.position_size, "MARKET")
+        except Exception as e:
+            log.error("Close order failed for %s: %s", plan.symbol, e)
+            result = type("FakeResult", (), {"success": False, "message": str(e)})()
+
         plan.status = PlanStatus.CLOSED
         if self._groww_monitor:
             self._groww_monitor.stop(plan.plan_id)

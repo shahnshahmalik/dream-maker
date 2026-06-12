@@ -11,3 +11,4 @@ dist/
 build/
 data/scrip_master.csv
 data/scrip_master.db
+.hermes/

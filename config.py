@@ -54,6 +54,8 @@ class Config:
     daily_loss_limit: float
     simulation_mode: bool
     trading_hours_ist: str
+    trade_window_start_ist: str  # earliest new-entry time (e.g. "09:30")
+    trade_window_end_ist: str    # latest new-entry / auto-square-off time (e.g. "15:15")
     market_holidays: list[str]
     market_closed_poll_interval: int
     stop_at_market_close: bool
@@ -66,6 +68,7 @@ class Config:
     intraday_square_off: str
     min_signal_strength: float
     entry_zone_tolerance_pct: float
+    entry_mode: str  # "immediate" = market order on setup, "zone" = wait for LTP in entry zone
     ai_review_cooldown_minutes: int
     ai_analysis_cooldown_minutes: int
     fno_margin_rate: float
@@ -84,6 +87,22 @@ class Config:
     scalp_trail_activate_pct: float
     scalp_trail_sl_distance_pct: float
     scalp_trail_breakeven_progress_pct: float
+
+    balance_min_sell: float
+    balance_sell_buffer: float
+
+    entry_stale_pct: float
+    entry_stale_cycles: int
+
+    # ── Precision scalping (low-balance option buying) ──
+    max_trades_per_day: int          # hard cap on total trades/day (1-4 for scalping)
+    daily_profit_target_pct: float   # stop trading when daily P&L hits this % of capital
+    daily_loss_limit_inr: float      # stop trading when daily loss exceeds this ₹ amount
+    scalp_tp_pct: float              # take-profit as % of premium (15-25 for options)
+    scalp_sl_pct: float              # stop-loss as % of premium (10-15 for options)
+    entry_quality_threshold: float   # minimum setup score to enter (0.65-0.75)
+    entry_require_pullback: bool     # require price pullback to EMA before entry
+    entry_require_volume_surge: bool # require volume > 1.2x average for entry
 
     dhan_access_token: str
     dhan_client_id: str
@@ -124,6 +143,8 @@ def load_config() -> Config:
         daily_loss_limit=float(os.getenv("DAILY_LOSS_LIMIT", y.get("daily_loss_limit", 5.0))),
         simulation_mode=_bool(os.getenv("SIMULATION_MODE"), default=y.get("simulation_mode", True)),
         trading_hours_ist=os.getenv("TRADING_HOURS_IST", y.get("trading_hours_ist", "09:15-15:15")),
+        trade_window_start_ist=os.getenv("TRADE_WINDOW_START_IST", y.get("trade_window_start_ist", "09:30")),
+        trade_window_end_ist=os.getenv("TRADE_WINDOW_END_IST", y.get("trade_window_end_ist", "15:15")),
         market_holidays=_parse_csv(os.getenv("MARKET_HOLIDAYS"), y.get("market_holidays", [])),
         market_closed_poll_interval=int(
             os.getenv("MARKET_CLOSED_POLL_INTERVAL", y.get("market_closed_poll_interval", 300))
@@ -141,7 +162,8 @@ def load_config() -> Config:
         scheduled_events=list(y.get("scheduled_events", [])),
         intraday_square_off=os.getenv("INTRADAY_SQUARE_OFF", y.get("intraday_square_off", "15:15")),
         min_signal_strength=float(os.getenv("MIN_SIGNAL_STRENGTH", y.get("min_signal_strength", 0.65))),
-        entry_zone_tolerance_pct=float(os.getenv("ENTRY_ZONE_TOLERANCE_PCT", y.get("entry_zone_tolerance_pct", 0.15))),
+        entry_zone_tolerance_pct=float(os.getenv("ENTRY_ZONE_TOLERANCE_PCT", y.get("entry_zone_tolerance_pct", 1.5))),
+        entry_mode=os.getenv("ENTRY_MODE", y.get("entry_mode", "immediate")),
         ai_review_cooldown_minutes=int(os.getenv("AI_REVIEW_COOLDOWN_MIN", y.get("ai_review_cooldown_minutes", 30))),
         ai_analysis_cooldown_minutes=int(os.getenv("AI_ANALYSIS_COOLDOWN_MIN", y.get("ai_analysis_cooldown_minutes", 60))),
         fno_margin_rate=float(os.getenv("FNO_MARGIN_RATE", y.get("fno_margin_rate", 0.12))),
@@ -160,7 +182,7 @@ def load_config() -> Config:
             os.getenv("SCALP_MIN_SIGNAL_STRENGTH", y.get("scalp_min_signal_strength", 0.55))
         ),
         scalp_max_sl_pct=float(os.getenv("SCALP_MAX_SL_PCT", y.get("scalp_max_sl_pct", 0.35))),
-        scalp_min_confirmations=int(os.getenv("SCALP_MIN_CONFIRMATIONS", y.get("scalp_min_confirmations", 2))),
+        scalp_min_confirmations=int(os.getenv("SCALP_MIN_CONFIRMATIONS", y.get("scalp_min_confirmations", 1))),
         scalp_trail_activate_pct=float(
             os.getenv("SCALP_TRAIL_ACTIVATE_PCT", y.get("scalp_trail_activate_pct", 0.25))
         ),
@@ -194,4 +216,17 @@ def load_config() -> Config:
             os.getenv("TELEGRAM_NOTIFY_AI"), default=y.get("telegram_notify_ai", True)
         ),
         trade_log_path=Path(os.getenv("TRADE_LOG_PATH", str(_ROOT / "trade_log.jsonl"))),
+        balance_min_sell=float(os.getenv("BALANCE_MIN_SELL", y.get("balance_min_sell", 100_000))),
+        balance_sell_buffer=float(os.getenv("BALANCE_SELL_BUFFER", y.get("balance_sell_buffer", 1.5))),
+        entry_stale_pct=float(os.getenv("ENTRY_STALE_PCT", y.get("entry_stale_pct", 5.0))),
+        entry_stale_cycles=int(os.getenv("ENTRY_STALE_CYCLES", y.get("entry_stale_cycles", 8))),
+        # ── Precision scalping ──
+        max_trades_per_day=int(os.getenv("MAX_TRADES_PER_DAY", y.get("max_trades_per_day", 8))),
+        daily_profit_target_pct=float(os.getenv("DAILY_PROFIT_TARGET_PCT", y.get("daily_profit_target_pct", 3.0))),
+        daily_loss_limit_inr=float(os.getenv("DAILY_LOSS_LIMIT_INR", y.get("daily_loss_limit_inr", 1000))),
+        scalp_tp_pct=float(os.getenv("SCALP_TP_PCT", y.get("scalp_tp_pct", 20.0))),
+        scalp_sl_pct=float(os.getenv("SCALP_SL_PCT", y.get("scalp_sl_pct", 12.0))),
+        entry_quality_threshold=float(os.getenv("ENTRY_QUALITY_THRESHOLD", y.get("entry_quality_threshold", 0.70))),
+        entry_require_pullback=_bool(os.getenv("ENTRY_REQUIRE_PULLBACK"), default=y.get("entry_require_pullback", True)),
+        entry_require_volume_surge=_bool(os.getenv("ENTRY_REQUIRE_VOLUME_SURGE"), default=y.get("entry_require_volume_surge", True)),
     )

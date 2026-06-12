@@ -57,6 +57,20 @@ def _find_affordable_option(
     if spot > 0 or best.underlying in picker.STOCK_SPOTS:
         effective_spot = spot if spot > 0 else picker.STOCK_SPOTS.get(best.underlying.upper(), 0)
         if effective_spot > 0:
+            # Try intelligent strike selector first (CE + PE + multiple expiries)
+            from agent.intelligent_strike_selector import find_affordable_strike
+            smart_pick = find_affordable_strike(
+                broker=broker,
+                underlying=best.underlying,
+                spot=effective_spot,
+                balance=balance,
+                preferred_direction="CE",
+            )
+            if smart_pick:
+                log.info("Found affordable strike (intelligent): %s", smart_pick)
+                return smart_pick
+
+            # Fall back to simple OTM CE scan
             otm_symbols = picker._resolve_otm_strikes(best.underlying, effective_spot, max_otm_steps=6)
             for otm_sym in otm_symbols:
                 if _premium_fits(broker, otm_sym, best.lot_size, balance, log, spot=effective_spot):

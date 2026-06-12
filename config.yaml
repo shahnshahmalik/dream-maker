@@ -1,6 +1,6 @@
 active_broker: dhan
 active_llm: openai_compat
-monitor_interval: 60
+monitor_interval: 30
 max_open_trades: 3
 risk_pct_per_trade: 1.5
 daily_loss_limit: 5.0
@@ -10,9 +10,9 @@ market_holidays: []
 market_closed_poll_interval: 300
 stop_at_market_close: false
 wait_for_market_open: true
-min_rr_ratio: 3.0
+min_rr_ratio: 2.0
 min_signal_strength: 0.65
-entry_zone_tolerance_pct: 0.15
+entry_zone_tolerance_pct: 1.5
 ai_review_cooldown_minutes: 30
 ai_analysis_cooldown_minutes: 60
 fno_margin_rate: 0.12
@@ -26,10 +26,20 @@ scalp_enabled: true
 scalp_min_rr_ratio: 1.2
 scalp_min_signal_strength: 0.55
 scalp_max_sl_pct: 0.35
-scalp_min_confirmations: 2
+scalp_min_confirmations: 1
 scalp_trail_activate_pct: 0.25
 scalp_trail_sl_distance_pct: 0.2
 scalp_trail_breakeven_progress_pct: 15
+# ── Precision scalping (low balance option buying) ──
+max_trades_per_day: 8
+daily_profit_target_pct: 3.0
+max_consecutive_losses: 2  # deprecated — see daily_loss_limit_inr below
+daily_loss_limit_inr: 1000
+scalp_tp_pct: 20.0
+scalp_sl_pct: 12.0
+entry_quality_threshold: 0.65
+entry_require_pullback: true
+entry_require_volume_surge: true
 # TRADING_SYMBOL is required in .env (F&O only, e.g. NIFTY50IDX or NIFTY25JUNFUT)
 event_blackout_minutes: 15
 scheduled_events: []

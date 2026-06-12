@@ -319,12 +319,42 @@ class ScripMaster:
         )
 
     def get_lot_size(self, trading_symbol: str) -> int | None:
-        """Get lot size from trading_symbol (e.g., 'BANKNIFTY26JUN54400CE')."""
+        """Get lot size from trading_symbol (e.g., 'BANKNIFTY26JUN54400CE').
+
+        Handles format conversion between internal (BANKNIFTY26JUN54400CE)
+        and CSV (BANKNIFTY-Jun2026-54400-CE) formats.
+        """
+        # Try exact match first
         row = self.conn.execute(
             "SELECT lot_size FROM scrip_master WHERE trading_symbol = ? LIMIT 1",
             (trading_symbol,),
         ).fetchone()
-        return int(row["lot_size"]) if row else None
+        if row:
+            return int(row["lot_size"])
+
+        # Convert internal format to CSV format
+        import re
+        m = re.match(
+            r"^(?P<underlying>[A-Z]+)(?P<yy>\d{2})(?P<month>[A-Z]{3})"
+            r"(?P<strike>\d+)(?P<type>CE|PE)$",
+            trading_symbol.upper(),
+        )
+        if m:
+            yy = int(m.group("yy"))
+            full_year = 2000 + yy
+            month_name = m.group("month").capitalize()
+            csv_format = (
+                f"{m.group('underlying')}-{month_name}{full_year}-"
+                f"{m.group('strike')}-{m.group('type')}"
+            )
+            row2 = self.conn.execute(
+                "SELECT lot_size FROM scrip_master WHERE trading_symbol = ? LIMIT 1",
+                (csv_format,),
+            ).fetchone()
+            if row2:
+                return int(row2["lot_size"])
+
+        return None
 
     def stats(self) -> dict:
         """Return summary statistics about stored data."""

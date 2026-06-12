@@ -21,11 +21,14 @@ from models.trade_plan import EntryType, PlanStatus, TradeDirection, TradePlan
 from providers.factory import get_broker
 from risk.limits import LimitsGuard
 from risk.manager import RiskManager
+from risk.balance_manager import BalanceManager
+from risk.session_tracker import SessionTracker, SessionState
 from utils.market_hours import (
     MarketSession,
     compute_idle_sleep_seconds,
     format_next_open,
     get_market_session,
+    is_trade_window_ending,
 )
 from utils.symbols import normalize_symbol
 
@@ -53,6 +56,11 @@ class TradingEngine:
         self.broker = get_broker(cfg)
         self.llm = get_llm(cfg)
         self.risk = RiskManager(cfg.risk_pct_per_trade, cfg.min_rr_ratio)
+        self.balance = BalanceManager(
+            min_sell_balance=cfg.balance_min_sell,
+            sell_buffer=cfg.balance_sell_buffer,
+        )
+        self.session = SessionTracker(cfg)
         self.limits = LimitsGuard(
             cfg.max_open_trades,
             cfg.daily_loss_limit,
@@ -60,15 +68,20 @@ class TradingEngine:
             cfg.scheduled_events,
         )
         self.pipeline = AnalysisPipeline(self.broker, cfg, self.trade_logger, self.risk)
-        self.scanner = WatchlistScanner(self.pipeline, cfg, self.broker)
+        self.scanner = WatchlistScanner(self.pipeline, cfg, self.broker, self.session)
         self.planner = TradePlanner(self.llm, cfg, self.trade_logger)
         self.entry_watcher = EntryWatcher(self.broker, cfg)
-        self.executor = TradeExecutor(self.broker, cfg, self.trade_logger, self.limits)
+        self.executor = TradeExecutor(self.broker, cfg, self.trade_logger, self.limits, self.balance)
         self.trailing = TrailingService(cfg, self.executor, self.trade_logger)
         self.monitor = PositionMonitor(
             self.broker, self.llm, self.executor, cfg, self.trade_logger, self.trailing,
         )
         self.plans: list[TradePlan] = []
+        self._entry_drift_cycles: dict[str, int] = {}  # plan_id → consecutive drift cycles
+        self._symbol_cooldown_until: dict[str, float] = {}  # symbol → timestamp when cooldown ends
+        self._churn_cooldown_seconds: int = 300  # 5 min cooldown after monitor-triggered close
+        self._consecutive_auth_failures: int = 0  # counter for DH-901 / 401 errors
+        self._max_auth_failures: int = 3  # halt engine after this many consecutive auth failures
 
     def _recover_state(self) -> None:
         recovered = self.state_store.load_plans()
@@ -124,18 +137,63 @@ class TradingEngine:
         if self.state_store.is_stale():
             log.warning("Previous heartbeat stale or missing — possible crash detected")
 
-        self._recover_state()
-
+        # ── 1. Get broker truth FIRST ──────────────────────────────
         funds = self.broker.get_funds()
         log.info("Funds: available=%.2f total=%.2f %s", funds.available, funds.total, funds.currency)
+        self.session.set_initial_capital(funds.available)
         self.trade_logger.log(
             "MONITOR", "SYSTEM", self.broker.name,
             "Startup connectivity OK",
             {"available": funds.available, "total": funds.total},
         )
 
-        positions = self.broker.get_positions()
-        for pos in positions:
+        broker_positions = self.broker.get_positions()
+        broker_active_symbols: set[str] = set()
+        for pos in broker_positions:
+            sym = normalize_symbol(pos.symbol) if pos.symbol else ""
+            # Also track the Dhan-format symbol for fuzzy matching
+            broker_active_symbols.add(sym)
+            if pos.symbol:
+                broker_active_symbols.add(pos.symbol)
+
+        # ── 2. Recover local state ─────────────────────────────────
+        self._recover_state()
+
+        # ── 3. Cross-validate: phantom plans → invalidate ──────────
+        for plan in list(self.plans):
+            if plan.status not in {PlanStatus.ACTIVE, PlanStatus.WAITING_ENTRY}:
+                continue
+            plan_sym = normalize_symbol(plan.symbol) if plan.symbol else ""
+            # Check if any broker position matches (exact or fuzzy underlying match)
+            is_real = False
+            for broker_sym in broker_active_symbols:
+                if plan_sym == broker_sym:
+                    is_real = True
+                    break
+                # Fuzzy match: NIFTY26JUN23400CE vs NIFTY-Jun2026-23400-CE
+                if plan_sym.upper().replace(" ", "") == broker_sym.upper().replace(" ", "").replace("-", ""):
+                    is_real = True
+                    break
+                # Match by underlying + strike: extract "NIFTY" + "23400"
+                import re
+                plan_strike = re.search(r"(\d{5})", plan_sym) if plan_sym else None
+                broker_strike = re.search(r"(\d{5})", broker_sym)
+                plan_base = re.sub(r"\d{2}[A-Z]{3}.*", "", (plan_sym or "").upper())
+                broker_base = re.sub(r"\d{2}[A-Z]{3}.*", "", broker_sym.upper())
+                if plan_strike and broker_strike and plan_base and broker_base:
+                    if plan_strike.group(1) == broker_strike.group(1) and plan_base in broker_base:
+                        is_real = True
+                        break
+            if not is_real:
+                plan.status = PlanStatus.INVALIDATED
+                plan.rationale = "stale — position already closed on broker"
+                log.warning(
+                    "Invalidated phantom plan %s (status was %s) — no matching broker position",
+                    plan.symbol, plan.status.name if hasattr(plan.status, 'name') else plan.status,
+                )
+
+        # ── 4. Reconstruct broker positions not in plans ───────────
+        for pos in broker_positions:
             pos_sym = normalize_symbol(pos.symbol) if pos.symbol else ""
             if pos_sym != self.cfg.trading_symbol and not pos_sym.startswith(
                 normalize_symbol(self.cfg.trading_symbol).replace("50IDX", "").replace("IDX", "")[:5]
@@ -145,7 +203,16 @@ class TradingEngine:
                     pos.symbol, self.cfg.trading_symbol,
                 )
                 continue
-            if any(p.status == PlanStatus.ACTIVE for p in self.plans):
+            # Check if we already track this position
+            already_tracked = False
+            for p in self.plans:
+                if p.status != PlanStatus.ACTIVE:
+                    continue
+                p_sym = normalize_symbol(p.symbol) if p.symbol else ""
+                if p_sym == pos_sym or (p.symbol and p.symbol == pos.symbol):
+                    already_tracked = True
+                    break
+            if already_tracked:
                 continue
             plan = TradePlan(
                 symbol=normalize_symbol(pos.symbol) if pos.symbol else self.cfg.trading_symbol,
@@ -172,6 +239,10 @@ class TradingEngine:
             self.trailing.register(plan)
             log.info("Reconstructed active plan for %s qty=%s", pos.symbol, pos.qty)
 
+        phantom_count = sum(1 for p in self.plans if p.rationale and "stale" in p.rationale)
+        if phantom_count:
+            log.warning("Invalidated %d phantom plan(s) — positions already closed on broker", phantom_count)
+
         self.state_store.save_plans(self.plans)
 
     def _has_open_workflow(self) -> bool:
@@ -179,6 +250,58 @@ class TradingEngine:
             p.status in {PlanStatus.WAITING_ENTRY, PlanStatus.PENDING, PlanStatus.ACTIVE}
             for p in self.plans
         )
+
+    def _invalidate_stale_entries(self) -> list[TradePlan]:
+        """Invalidate WAITING_ENTRY plans whose LTP has drifted too far from the
+        entry zone for too many consecutive cycles.  Clean drift counters for
+        plans that are no longer WAITING_ENTRY."""
+        max_pct = self.cfg.entry_stale_pct / 100.0
+        max_cycles = self.cfg.entry_stale_cycles
+        invalidated: list[TradePlan] = []
+
+        # Clean up counters for plans that are no longer waiting
+        active_ids = {
+            p.plan_id for p in self.plans
+            if p.status == PlanStatus.WAITING_ENTRY
+        }
+        stale_keys = [k for k in self._entry_drift_cycles if k not in active_ids]
+        for k in stale_keys:
+            del self._entry_drift_cycles[k]
+
+        for plan in self.plans:
+            if plan.status != PlanStatus.WAITING_ENTRY:
+                continue
+            if plan.entry_price_low is None or plan.entry_price_high is None:
+                continue
+
+            try:
+                ltp = self.entry_watcher._get_ltp(plan)
+            except Exception:
+                continue
+
+            zone_center = (plan.entry_price_low + plan.entry_price_high) / 2
+            if zone_center <= 0:
+                continue
+
+            drift_pct = abs(ltp - zone_center) / zone_center
+            if drift_pct > max_pct:
+                cycles = self._entry_drift_cycles.get(plan.plan_id, 0) + 1
+                self._entry_drift_cycles[plan.plan_id] = cycles
+                if cycles >= max_cycles:
+                    plan.status = PlanStatus.INVALIDATED
+                    plan.rationale = (
+                        f"Entry stale — LTP {ltp:.2f} drifted {drift_pct:.1%} "
+                        f"from zone {plan.entry_price_low:.2f}–{plan.entry_price_high:.2f} "
+                        f"for {cycles} cycles"
+                    )
+                    invalidated.append(plan)
+                    del self._entry_drift_cycles[plan.plan_id]
+                    log.warning("Invalidated stale entry %s: %s", plan.symbol, plan.rationale)
+            else:
+                # Price came back into range — reset counter
+                self._entry_drift_cycles.pop(plan.plan_id, None)
+
+        return invalidated
 
     def _session(self) -> MarketSession:
         return get_market_session(
@@ -310,21 +433,39 @@ class TradingEngine:
         )
 
         if not self._has_open_workflow() and not self.scan_only:
-            results = self.scanner.scan()
-            pending = self.scanner.pending_plans(results)
-            for plan in pending:
-                if plan.plan_id in {p.plan_id for p in self.plans}:
-                    continue
-                tech_summary = {"symbol": self.cfg.trading_symbol, "strength": plan.signal_strength}
-                plan = self.planner.apply_ai_markers(plan, tech_summary)
-                if plan.status == PlanStatus.PAUSED:
-                    log.info("Trade paused: %s", plan.rationale)
-                    continue
-                self.plans.append(plan)
-                log.info("\n%s", plan.format_plan())
-                self.trade_logger.log("PLAN", plan.symbol, self.broker.name, plan.rationale, plan.to_dict())
+            # Churn guard: skip scan if a recent monitor-triggered close is cooling down
+            import time as _time
+            now = _time.monotonic()
+            cooldown_blocked = [
+                sym for sym, until in self._symbol_cooldown_until.items()
+                if now < until
+            ]
+            if cooldown_blocked:
+                remaining = max(0, int(max(self._symbol_cooldown_until.values()) - now))
+                log.info(
+                    "Scan suppressed — %s in cooldown (%ds remaining)",
+                    cooldown_blocked, remaining,
+                )
+            else:
+                results = self.scanner.scan()
+                pending = self.scanner.pending_plans(results)
+                for plan in pending:
+                    if plan.plan_id in {p.plan_id for p in self.plans}:
+                        continue
+                    tech_summary = {"symbol": self.cfg.trading_symbol, "strength": plan.signal_strength}
+                    plan = self.planner.apply_ai_markers(plan, tech_summary)
+                    if plan.status == PlanStatus.PAUSED:
+                        log.info("Trade paused: %s", plan.rationale)
+                        continue
+                    self.plans.append(plan)
+                    log.info("\n%s", plan.format_plan())
+                    self.trade_logger.log("PLAN", plan.symbol, self.broker.name, plan.rationale, plan.to_dict())
 
         ready = self.entry_watcher.tick(self.plans)
+        if ready:
+            log.info("ENGINE: %d plan(s) ready for execution: %s",
+                     len(ready), [p.symbol for p in ready])
+        stale_invalidated = self._invalidate_stale_entries()
         open_count = sum(1 for p in self.plans if p.status == PlanStatus.ACTIVE)
 
         if not self.scan_only:
@@ -338,7 +479,66 @@ class TradingEngine:
                     open_count = sum(1 for p in self.plans if p.status == PlanStatus.ACTIVE)
 
             self.executor.square_off_intraday(self.plans)
+
+            # Trade-window-end square-off: close all positions when 15:15 approaches
+            if is_trade_window_ending(self.cfg.trade_window_end_ist):
+                active_at_end = [p for p in self.plans if p.status == PlanStatus.ACTIVE]
+                if active_at_end:
+                    log.warning(
+                        "Trade window ending (%s IST) — squaring off %d position(s)",
+                        self.cfg.trade_window_end_ist, len(active_at_end),
+                    )
+                    for plan in active_at_end:
+                        self.executor.close_plan(plan, reason=f"Trade window end {self.cfg.trade_window_end_ist} IST")
+
+            # Snapshot ACTIVE plans before monitor tick to detect churn
+            active_before = {p.plan_id for p in self.plans if p.status == PlanStatus.ACTIVE}
+            # Track new entries: plans that just became ACTIVE this cycle
+            for plan in self.plans:
+                if plan.status == PlanStatus.ACTIVE and plan.plan_id not in active_before:
+                    self.session.register_entry(plan.symbol, plan.risk_amount)
+                    log.info("Session: trade #%d entered — %s", self.session.trade_count, plan.symbol)
+
             self.monitor.tick(self.plans)
+            # Detect plans the monitor just closed — set cooldown to prevent instant re-entry
+            closed_by_monitor = [
+                p for p in self.plans
+                if p.status == PlanStatus.CLOSED and p.plan_id in active_before
+            ]
+            for p in closed_by_monitor:
+                import time as _time
+                self._symbol_cooldown_until[p.symbol] = _time.monotonic() + self._churn_cooldown_seconds
+                log.info(
+                    "Churn guard: %s closed by monitor — cooldown %ds before re-entry",
+                    p.symbol, self._churn_cooldown_seconds,
+                )
+
+            # Track closed trades in session (P&L tracking)
+            for p in self.plans:
+                if p.status in (PlanStatus.CLOSED, PlanStatus.INVALIDATED) and p.plan_id in active_before:
+                    # Estimate P&L: if TP1 was hit, assume partial profit at TP1;
+                    # otherwise assume exit near stop_loss (worst-case).
+                    pnl = 0.0
+                    if p.entry_price and p.entry_price > 0:
+                        if p.tp1_hit:
+                            # Exited at or above TP1 → use TP1 as exit estimate
+                            exit_px = p.take_profit_1
+                        else:
+                            # Conservative: exit near SL
+                            exit_px = p.stop_loss
+                        if p.direction == TradeDirection.LONG:
+                            pnl = (exit_px - p.entry_price) * p.position_size
+                        else:
+                            pnl = (p.entry_price - exit_px) * p.position_size
+                    # Only register once per trade (track via meta)
+                    if not p.meta.get("_session_tracked"):
+                        self.session.register_close(pnl=pnl)
+                        p.meta["_session_tracked"] = True
+                        log.info("Session: trade closed — P&L=₹%.0f | %s", pnl, self.session.status_summary())
+
+            # Log session status every cycle
+            if self._loop_count % 5 == 0:  # every 5 cycles (~5 min)
+                log.info("%s", self.session.status_summary())
 
         self.state_store.save_plans(self.plans)
 
@@ -363,12 +563,24 @@ class TradingEngine:
                 should_continue = self.run_once()
             except Exception as e:
                 log.exception("Loop error: %s", e)
+                # Auth circuit breaker: halt on repeated 401 / expired token errors
+                exc_str = str(e)
+                if any(tag in exc_str for tag in ("DH-901", "Invalid_Authentication", "token is invalid", "token has expired")):
+                    self._consecutive_auth_failures += 1
+                    if self._consecutive_auth_failures >= self._max_auth_failures:
+                        log.critical(
+                            "AUTH CIRCUIT BREAKER: %d consecutive auth failures — halting engine. "
+                            "Refresh Dhan access token in .env and restart.",
+                            self._consecutive_auth_failures,
+                        )
+                        break
                 if _is_api_error(e) and self.limits.record_api_error():
                     log.error("Trading halted: %s", self.limits.state.halt_reason)
                     break
                 should_continue = True
             else:
                 self.limits.record_api_success()
+                self._consecutive_auth_failures = 0  # reset on clean cycle
 
             if not should_continue:
                 log.info("Engine stopping — market session ended")

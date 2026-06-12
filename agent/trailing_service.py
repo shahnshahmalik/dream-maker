@@ -7,7 +7,7 @@ import logging
 from agent.executor import TradeExecutor
 from config import Config
 from audit.trade_logger import TradeLogger
-from models.trade_plan import PlanStatus, TradePlan
+from models.trade_plan import PlanStatus, TradeDirection, TradePlan
 from risk.trailing import TrailingBracketManager, TrailingState, TrailUpdate
 
 log = logging.getLogger("dream_maker.trailing_service")
@@ -20,9 +20,48 @@ class TrailingService:
         self.trade_logger = trade_logger
         self._managers: dict[str, TrailingBracketManager] = {}
 
+    @staticmethod
+    def _effective_params(plan: TradePlan) -> tuple[TradeDirection, float, float, float]:
+        """Return (direction, sl, tp1, tp2) — mirroring for BUY_ONLY flipped positions.
+
+        When the balance manager flips SELL→BUY for a SHORT bias (buying a put),
+        the actual position is LONG the option. Trail direction and SL/TP levels
+        must reflect the real position, not the market bias.
+        """
+        direction = plan.direction
+        sl = plan.stop_loss
+        tp1 = plan.take_profit_1
+        tp2 = plan.take_profit_2
+
+        # BUY_ONLY: SHORT + PE = actually LONG the option (we BUY a put, not sell)
+        if direction == TradeDirection.SHORT and plan.symbol.upper().endswith("PE"):
+            direction = TradeDirection.LONG
+            entry = plan.entry_price or plan.entry_target()
+            # Mirror SL/TP around entry: SHORT SL is above entry, LONG SL is below
+            sl_dist = abs(entry - sl)
+            sl = entry - sl_dist
+            tp1 = entry + abs(entry - tp1)
+            tp2 = entry + abs(entry - tp2)
+            log.info(
+                "BUY_ONLY flip: SHORT bias → LONG PE trail. SL %.2f→%.2f TP1 %.2f→%.2f",
+                plan.stop_loss, sl, plan.take_profit_1, tp1,
+            )
+
+        return direction, sl, tp1, tp2
+
     def register(self, plan: TradePlan) -> None:
         if not self.cfg.trail_enabled or plan.status != PlanStatus.ACTIVE:
             return
+
+        direction, sl, tp1, tp2 = self._effective_params(plan)
+
+        # Force re-register if direction was wrong (BUY_ONLY flip detected)
+        existing = self._managers.get(plan.plan_id)
+        if existing and existing.direction != direction:
+            log.info("Re-registering trail for %s — direction corrected %s→%s",
+                     plan.symbol, existing.direction.value, direction.value)
+            self._managers.pop(plan.plan_id, None)
+
         if plan.plan_id in self._managers:
             return
         entry = plan.entry_price or plan.entry_target()
@@ -33,20 +72,22 @@ class TrailingService:
         breakeven_progress = (
             self.cfg.scalp_trail_breakeven_progress_pct if is_scalp else self.cfg.trail_breakeven_progress_pct
         )
+        # Only restore previous trail state if direction hasn't changed.
+        # When direction flips (BUY_ONLY correction), start fresh — old state is inverted.
         state = TrailingState.from_dict(
             trail_meta,
             fallback_entry=entry,
-            plan_sl=plan.stop_loss,
-            plan_tp1=plan.take_profit_1,
-            plan_tp2=plan.take_profit_2,
-        ) if trail_meta else None
+            plan_sl=sl,
+            plan_tp1=tp1,
+            plan_tp2=tp2,
+        ) if trail_meta and existing is None else None
 
         self._managers[plan.plan_id] = TrailingBracketManager(
-            direction=plan.direction,
+            direction=direction,
             entry=entry,
-            initial_sl=plan.stop_loss,
-            initial_tp1=plan.take_profit_1,
-            initial_tp2=plan.take_profit_2,
+            initial_sl=sl,
+            initial_tp1=tp1,
+            initial_tp2=tp2,
             trail_activate_pct=trail_activate,
             trail_sl_distance_pct=trail_sl_distance,
             trail_tp_reward_pct=self.cfg.trail_tp_reward_pct,
