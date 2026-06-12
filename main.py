@@ -117,11 +117,12 @@ def _premium_fits(
     log,
     spot: float = 0.0,
 ) -> bool:
-    """Return True if the option's estimated premium × lot_size fits within balance.
+    """Return True if the option's premium × lot_size fits within balance.
 
-    Dhan's ``get_quote`` returns spot/underlying prices for options, not the
-    actual option premium.  We estimate the premium from the strike distance
-    and typical ATM pricing instead.
+    Prefers the real option LTP from the broker; falls back to an estimate
+    from strike distance and typical ATM pricing when the quote is
+    unavailable or implausible (Dhan sometimes returns the underlying spot
+    instead of the option premium).
     """
     try:
         # Extract strike from symbol (e.g., "NIFTY26JUN23400CE" → 23400)
@@ -131,7 +132,7 @@ def _premium_fits(
             return True
         strike = int(m.group(1))
 
-        # Need spot price for estimation
+        # Need spot price for estimation and quote plausibility checks
         if spot <= 0:
             # Try to extract underlying and fetch spot
             underlying = option_symbol.split(str(strike))[0]
@@ -147,39 +148,52 @@ def _premium_fits(
                     log.warning("Cannot get spot for %s — assuming affordable", underlying_clean)
                     return True
 
-        # Estimate ATM premium as % of spot (empirical for Indian index options)
-        underlying_upper = option_symbol[:6].upper()
-        if "NIFTY" in underlying_upper and "BANK" not in underlying_upper:
-            atm_pct = 0.008   # ~0.8% for NIFTY ATM
-        elif "BANKNIFTY" in underlying_upper:
-            atm_pct = 0.006   # ~0.6% for BANKNIFTY ATM
-        elif "SENSEX" in underlying_upper:
-            atm_pct = 0.005   # ~0.5% for SENSEX ATM
-        else:
-            atm_pct = 0.010   # ~1.0% for stocks
+        # Prefer the real option premium from the broker
+        premium = 0.0
+        source = "estimated"
+        try:
+            q = broker.get_quote(option_symbol)
+            # Reject spot-scale values — the quote fell back to the underlying
+            if q.ltp > 0 and (spot <= 0 or q.ltp < spot * 0.25):
+                premium = q.ltp
+                source = "live"
+        except Exception:
+            pass
 
-        # Premium decays as we go OTM. Each 1% away from spot → ~15% premium drop
-        distance_pct = abs(strike - spot) / spot  # e.g., 0.02 = 2% OTM
-        decay = max(0.15, 1.0 - distance_pct * 15)  # 15% drop per 1% distance, floor 0.15
-        estimated_premium = spot * atm_pct * decay
-        # Floor: at least ₹8 per unit (deep OTM still has some value)
-        estimated_premium = max(estimated_premium, 8.0)
+        if premium <= 0:
+            # Estimate ATM premium as % of spot (empirical for Indian index options)
+            underlying_upper = option_symbol[:6].upper()
+            if "NIFTY" in underlying_upper and "BANK" not in underlying_upper:
+                atm_pct = 0.008   # ~0.8% for NIFTY ATM
+            elif "BANKNIFTY" in underlying_upper:
+                atm_pct = 0.006   # ~0.6% for BANKNIFTY ATM
+            elif "SENSEX" in underlying_upper:
+                atm_pct = 0.005   # ~0.5% for SENSEX ATM
+            else:
+                atm_pct = 0.010   # ~1.0% for stocks
 
-        cost = estimated_premium * lot_size
+            # Premium decays as we go OTM. Each 1% away from spot → ~15% premium drop
+            distance_pct = abs(strike - spot) / spot  # e.g., 0.02 = 2% OTM
+            decay = max(0.15, 1.0 - distance_pct * 15)  # 15% drop per 1% distance, floor 0.15
+            premium = spot * atm_pct * decay
+            # Floor: at least ₹8 per unit (deep OTM still has some value)
+            premium = max(premium, 8.0)
+
+        cost = premium * lot_size
         required = cost * MARGIN_BUFFER
 
         if balance >= required:
             log.info(
-                "Premium est: %s strike=%d spot=%.0f → premium≈₹%.0f × %d lot = ₹%.0f "
+                "Premium (%s): %s strike=%d spot=%.0f → premium≈₹%.0f × %d lot = ₹%.0f "
                 "(need ₹%.0f, have ₹%.0f) ✅",
-                option_symbol, strike, spot, estimated_premium, lot_size, cost, required, balance,
+                source, option_symbol, strike, spot, premium, lot_size, cost, required, balance,
             )
             return True
         else:
             log.info(
-                "Premium est: %s strike=%d spot=%.0f → premium≈₹%.0f × %d lot = ₹%.0f "
+                "Premium (%s): %s strike=%d spot=%.0f → premium≈₹%.0f × %d lot = ₹%.0f "
                 "> balance ₹%.0f ❌",
-                option_symbol, strike, spot, estimated_premium, lot_size, cost, balance,
+                source, option_symbol, strike, spot, premium, lot_size, cost, balance,
             )
             return False
     except Exception as e:

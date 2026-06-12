@@ -68,7 +68,6 @@ class Config:
     intraday_square_off: str
     min_signal_strength: float
     entry_zone_tolerance_pct: float
-    entry_mode: str  # "immediate" = market order on setup, "zone" = wait for LTP in entry zone
     ai_review_cooldown_minutes: int
     ai_analysis_cooldown_minutes: int
     fno_margin_rate: float
@@ -98,15 +97,12 @@ class Config:
     max_trades_per_day: int          # hard cap on total trades/day (1-4 for scalping)
     daily_profit_target_pct: float   # stop trading when daily P&L hits this % of capital
     daily_loss_limit_inr: float      # stop trading when daily loss exceeds this ₹ amount
-    scalp_tp_pct: float              # take-profit as % of premium (15-25 for options)
-    scalp_sl_pct: float              # stop-loss as % of premium (10-15 for options)
     entry_quality_threshold: float   # minimum setup score to enter (0.65-0.75)
     entry_require_pullback: bool     # require price pullback to EMA before entry
     entry_require_volume_surge: bool # require volume > 1.2x average for entry
 
     dhan_access_token: str
     dhan_client_id: str
-    groww_session_token: str
     openai_api_key: str
     openai_base_url: str
     openai_model: str
@@ -155,7 +151,7 @@ def load_config() -> Config:
         wait_for_market_open=_bool(
             os.getenv("WAIT_FOR_MARKET_OPEN"), default=y.get("wait_for_market_open", True)
         ),
-        min_rr_ratio=float(os.getenv("MIN_RR_RATIO", y.get("min_rr_ratio", 3.0))),
+        min_rr_ratio=float(os.getenv("MIN_RR_RATIO", y.get("min_rr_ratio", 2.0))),
         auto_symbol_picker=_bool(os.getenv("AUTO_SYMBOL_PICKER"), default=False),
         trading_symbol=trading_symbol,
         event_blackout_minutes=int(os.getenv("EVENT_BLACKOUT_MINUTES", y.get("event_blackout_minutes", 15))),
@@ -163,7 +159,6 @@ def load_config() -> Config:
         intraday_square_off=os.getenv("INTRADAY_SQUARE_OFF", y.get("intraday_square_off", "15:15")),
         min_signal_strength=float(os.getenv("MIN_SIGNAL_STRENGTH", y.get("min_signal_strength", 0.65))),
         entry_zone_tolerance_pct=float(os.getenv("ENTRY_ZONE_TOLERANCE_PCT", y.get("entry_zone_tolerance_pct", 1.5))),
-        entry_mode=os.getenv("ENTRY_MODE", y.get("entry_mode", "immediate")),
         ai_review_cooldown_minutes=int(os.getenv("AI_REVIEW_COOLDOWN_MIN", y.get("ai_review_cooldown_minutes", 30))),
         ai_analysis_cooldown_minutes=int(os.getenv("AI_ANALYSIS_COOLDOWN_MIN", y.get("ai_analysis_cooldown_minutes", 60))),
         fno_margin_rate=float(os.getenv("FNO_MARGIN_RATE", y.get("fno_margin_rate", 0.12))),
@@ -194,7 +189,6 @@ def load_config() -> Config:
         ),
         dhan_access_token=os.getenv("DHAN_ACCESS_TOKEN", ""),
         dhan_client_id=os.getenv("DHAN_CLIENT_ID", ""),
-        groww_session_token=os.getenv("GROWW_SESSION_TOKEN", ""),
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
         openai_base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
@@ -224,8 +218,6 @@ def load_config() -> Config:
         max_trades_per_day=int(os.getenv("MAX_TRADES_PER_DAY", y.get("max_trades_per_day", 8))),
         daily_profit_target_pct=float(os.getenv("DAILY_PROFIT_TARGET_PCT", y.get("daily_profit_target_pct", 3.0))),
         daily_loss_limit_inr=float(os.getenv("DAILY_LOSS_LIMIT_INR", y.get("daily_loss_limit_inr", 1000))),
-        scalp_tp_pct=float(os.getenv("SCALP_TP_PCT", y.get("scalp_tp_pct", 20.0))),
-        scalp_sl_pct=float(os.getenv("SCALP_SL_PCT", y.get("scalp_sl_pct", 12.0))),
         entry_quality_threshold=float(os.getenv("ENTRY_QUALITY_THRESHOLD", y.get("entry_quality_threshold", 0.70))),
         entry_require_pullback=_bool(os.getenv("ENTRY_REQUIRE_PULLBACK"), default=y.get("entry_require_pullback", True)),
         entry_require_volume_surge=_bool(os.getenv("ENTRY_REQUIRE_VOLUME_SURGE"), default=y.get("entry_require_volume_surge", True)),

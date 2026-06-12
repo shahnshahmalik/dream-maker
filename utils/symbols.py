@@ -110,6 +110,28 @@ def require_fno_symbol(symbol: str) -> str:
     return s
 
 
+def canonical_underlying(symbol: str) -> str:
+    """Reduce any contract/index symbol to its canonical underlying.
+
+    'NIFTY26JUN24500CE' → 'NIFTY', 'NIFTY24500CE' → 'NIFTY',
+    'NIFTY50IDX' → 'NIFTY', 'BANKNIFTY' → 'BANKNIFTY'
+    """
+    s = normalize_symbol(symbol)
+    s = re.sub(r"\d{2}[A-Z]{3}.*$", "", s)   # strip expiry onwards (26JUN24500CE)
+    s = re.sub(r"\d+(CE|PE).*$", "", s)      # strip strike+type (24500CE)
+    s = re.sub(r"(IDX|INDEX)$", "", s)
+    s = re.sub(r"FUT$", "", s)
+    if s == "NIFTY50":
+        s = "NIFTY"
+    return s
+
+
+def same_underlying(a: str, b: str) -> bool:
+    """True when two symbols share the same canonical underlying."""
+    ua = canonical_underlying(a)
+    return bool(ua) and ua == canonical_underlying(b)
+
+
 def same_underlying_strike(a: str, b: str) -> bool:
     """Check if two option symbols share the same underlying and strike (ignoring CE/PE)."""
     import re as _re

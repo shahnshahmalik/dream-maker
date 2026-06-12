@@ -66,6 +66,10 @@ class SessionTracker:
             self._initial_capital = capital
 
     @property
+    def initial_capital(self) -> float:
+        return self._initial_capital
+
+    @property
     def trade_count(self) -> int:
         self._check_day_rollover()
         return self._trade_count

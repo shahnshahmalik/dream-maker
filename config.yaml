@@ -33,10 +33,7 @@ scalp_trail_breakeven_progress_pct: 15
 # ── Precision scalping (low balance option buying) ──
 max_trades_per_day: 8
 daily_profit_target_pct: 3.0
-max_consecutive_losses: 2  # deprecated — see daily_loss_limit_inr below
 daily_loss_limit_inr: 1000
-scalp_tp_pct: 20.0
-scalp_sl_pct: 12.0
 entry_quality_threshold: 0.65
 entry_require_pullback: true
 entry_require_volume_surge: true

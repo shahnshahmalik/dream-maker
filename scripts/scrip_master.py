@@ -297,6 +297,70 @@ class ScripMaster:
 
         return None
 
+    def find_contract(
+        self,
+        symbol_name: str,     # e.g., "NIFTY", "BANKNIFTY"
+        strike: float,        # e.g., 24500
+        option_type: str,     # "CE" or "PE"
+        on_or_after: str | None = None,  # "YYYY-MM-DD"; defaults to today
+    ) -> ScripRecord | None:
+        """Find the nearest-expiry option contract for underlying+strike+type."""
+        cutoff = on_or_after or datetime.now().strftime("%Y-%m-%d")
+        row = self.conn.execute(
+            """SELECT * FROM scrip_master
+               WHERE symbol_name = ?
+                 AND strike_price = ?
+                 AND option_type = ?
+                 AND date(expiry_date) >= date(?)
+               ORDER BY date(expiry_date) ASC
+               LIMIT 1""",
+            (symbol_name.upper(), float(strike), option_type.upper(), cutoff),
+        ).fetchone()
+        if row is None:
+            return None
+        return ScripRecord(
+            security_id=row["security_id"],
+            trading_symbol=row["trading_symbol"],
+            instrument_name=row["instrument_name"],
+            expiry_date=row["expiry_date"],
+            strike_price=row["strike_price"],
+            option_type=row["option_type"],
+            lot_size=row["lot_size"],
+            tick_size=row["tick_size"],
+            symbol_name=row["symbol_name"],
+            updated_at=row["updated_at"],
+        )
+
+    @staticmethod
+    def to_internal_symbol(rec: ScripRecord) -> str | None:
+        """Convert a record to internal symbol format.
+
+        'NIFTY-Jun2026-24500-CE' → 'NIFTY26JUN24500CE'
+        Falls back to building from record fields when the CSV trading
+        symbol doesn't match the expected pattern.
+        """
+        import re
+        m = re.match(
+            r"^(?P<underlying>[A-Z]+)-(?P<month>[A-Za-z]{3})(?P<year>\d{4})-"
+            r"(?P<strike>\d+)-(?P<type>CE|PE)$",
+            rec.trading_symbol.strip(),
+            re.IGNORECASE,
+        )
+        if m:
+            return (
+                f"{m.group('underlying').upper()}{m.group('year')[2:]}"
+                f"{m.group('month').upper()}{m.group('strike')}{m.group('type').upper()}"
+            )
+        # Build from structured fields (expiry_date like '2026-06-25 14:30:00')
+        try:
+            expiry = datetime.strptime(rec.expiry_date[:10], "%Y-%m-%d")
+            return (
+                f"{rec.symbol_name.upper()}{expiry.strftime('%y%b').upper()}"
+                f"{int(rec.strike_price)}{rec.option_type.upper()}"
+            )
+        except (ValueError, TypeError):
+            return None
+
     def get_by_security_id(self, security_id: int) -> ScripRecord | None:
         """Get full record by security ID."""
         row = self.conn.execute(

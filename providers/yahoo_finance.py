@@ -10,7 +10,10 @@ import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-import yfinance as yf
+try:
+    import yfinance as yf
+except ImportError:  # optional fallback provider — degrade gracefully
+    yf = None
 
 from models.orders import OHLCV
 
@@ -87,6 +90,10 @@ def fetch_ohlcv(symbol: str, timeframe: str, limit: int) -> list[OHLCV]:
     Returns:
         List of OHLCV candles, or empty list on failure.
     """
+    if yf is None:
+        log.debug("yfinance not installed — Yahoo fallback unavailable")
+        return []
+
     ticker = _resolve_ticker(symbol)
     if ticker is None:
         log.debug("No Yahoo ticker mapping for %s", symbol)

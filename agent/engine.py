@@ -71,7 +71,10 @@ class TradingEngine:
         self.scanner = WatchlistScanner(self.pipeline, cfg, self.broker, self.session)
         self.planner = TradePlanner(self.llm, cfg, self.trade_logger)
         self.entry_watcher = EntryWatcher(self.broker, cfg)
-        self.executor = TradeExecutor(self.broker, cfg, self.trade_logger, self.limits, self.balance)
+        self.executor = TradeExecutor(
+            self.broker, cfg, self.trade_logger, self.limits, self.balance,
+            session_tracker=self.session,
+        )
         self.trailing = TrailingService(cfg, self.executor, self.trade_logger)
         self.monitor = PositionMonitor(
             self.broker, self.llm, self.executor, cfg, self.trade_logger, self.trailing,
@@ -469,14 +472,30 @@ class TradingEngine:
         open_count = sum(1 for p in self.plans if p.status == PlanStatus.ACTIVE)
 
         if not self.scan_only:
-            for plan in ready:
-                self.executor.execute_plan(plan, open_count)
-                open_count = sum(1 for p in self.plans if p.status == PlanStatus.ACTIVE)
+            # Snapshot ACTIVE plans BEFORE execution so new entries this
+            # cycle can be detected for session tracking.
+            pre_exec_active = {p.plan_id for p in self.plans if p.status == PlanStatus.ACTIVE}
 
+            # Single execution pass per cycle: covers plans the entry watcher
+            # just marked PENDING and earlier failed placements. A failed
+            # placement sets a retry cooldown inside execute_plan, so it is
+            # never attempted twice in the same cycle.
             for plan in self.plans:
                 if plan.status == PlanStatus.PENDING:
                     self.executor.execute_plan(plan, open_count)
                     open_count = sum(1 for p in self.plans if p.status == PlanStatus.ACTIVE)
+
+            # Track new entries: plans that became ACTIVE this cycle
+            for plan in self.plans:
+                if plan.status == PlanStatus.ACTIVE and plan.plan_id not in pre_exec_active:
+                    self.session.register_entry(plan.symbol, plan.risk_amount)
+                    log.info("Session: trade #%d entered — %s", self.session.trade_count, plan.symbol)
+
+            # Plans that were ACTIVE at any point this cycle — used for
+            # close/P&L tracking so square-offs are not missed.
+            ever_active = pre_exec_active | {
+                p.plan_id for p in self.plans if p.status == PlanStatus.ACTIVE
+            }
 
             self.executor.square_off_intraday(self.plans)
 
@@ -492,18 +511,13 @@ class TradingEngine:
                         self.executor.close_plan(plan, reason=f"Trade window end {self.cfg.trade_window_end_ist} IST")
 
             # Snapshot ACTIVE plans before monitor tick to detect churn
-            active_before = {p.plan_id for p in self.plans if p.status == PlanStatus.ACTIVE}
-            # Track new entries: plans that just became ACTIVE this cycle
-            for plan in self.plans:
-                if plan.status == PlanStatus.ACTIVE and plan.plan_id not in active_before:
-                    self.session.register_entry(plan.symbol, plan.risk_amount)
-                    log.info("Session: trade #%d entered — %s", self.session.trade_count, plan.symbol)
+            active_before_monitor = {p.plan_id for p in self.plans if p.status == PlanStatus.ACTIVE}
 
             self.monitor.tick(self.plans)
             # Detect plans the monitor just closed — set cooldown to prevent instant re-entry
             closed_by_monitor = [
                 p for p in self.plans
-                if p.status == PlanStatus.CLOSED and p.plan_id in active_before
+                if p.status == PlanStatus.CLOSED and p.plan_id in active_before_monitor
             ]
             for p in closed_by_monitor:
                 import time as _time
@@ -515,26 +529,30 @@ class TradingEngine:
 
             # Track closed trades in session (P&L tracking)
             for p in self.plans:
-                if p.status in (PlanStatus.CLOSED, PlanStatus.INVALIDATED) and p.plan_id in active_before:
-                    # Estimate P&L: if TP1 was hit, assume partial profit at TP1;
-                    # otherwise assume exit near stop_loss (worst-case).
-                    pnl = 0.0
-                    if p.entry_price and p.entry_price > 0:
-                        if p.tp1_hit:
-                            # Exited at or above TP1 → use TP1 as exit estimate
-                            exit_px = p.take_profit_1
-                        else:
-                            # Conservative: exit near SL
-                            exit_px = p.stop_loss
-                        if p.direction == TradeDirection.LONG:
-                            pnl = (exit_px - p.entry_price) * p.position_size
-                        else:
-                            pnl = (p.entry_price - exit_px) * p.position_size
-                    # Only register once per trade (track via meta)
-                    if not p.meta.get("_session_tracked"):
-                        self.session.register_close(pnl=pnl)
-                        p.meta["_session_tracked"] = True
-                        log.info("Session: trade closed — P&L=₹%.0f | %s", pnl, self.session.status_summary())
+                if p.status in (PlanStatus.CLOSED, PlanStatus.INVALIDATED) and p.plan_id in ever_active:
+                    if p.meta.get("_session_tracked"):
+                        continue  # only register once per trade
+                    # Prefer the realized P&L captured at close (fill price or
+                    # live quote); estimate from SL/TP only as a last resort.
+                    pnl_raw = p.meta.get("realized_pnl")
+                    if pnl_raw is not None:
+                        pnl = float(pnl_raw)
+                    else:
+                        pnl = 0.0
+                        if p.entry_price and p.entry_price > 0:
+                            exit_px = p.take_profit_1 if p.tp1_hit else p.stop_loss
+                            if p.direction == TradeDirection.LONG:
+                                pnl = (exit_px - p.entry_price) * p.position_size
+                            else:
+                                pnl = (p.entry_price - exit_px) * p.position_size
+                    self.session.register_close(pnl=pnl)
+                    # Feed the daily-loss circuit breaker with real percentages
+                    if self.session.initial_capital > 0:
+                        self.limits.record_pnl(pnl / self.session.initial_capital * 100.0)
+                        if self.limits.state.halted:
+                            log.warning("LimitsGuard: %s", self.limits.state.halt_reason)
+                    p.meta["_session_tracked"] = True
+                    log.info("Session: trade closed — P&L=₹%.0f | %s", pnl, self.session.status_summary())
 
             # Log session status every cycle
             if self._loop_count % 5 == 0:  # every 5 cycles (~5 min)

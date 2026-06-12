@@ -385,6 +385,34 @@ class DhanProvider(BrokerProvider):
             raw=row,
         )
 
+    def _place_leg(self, payload: dict[str, Any], label: str, sim_id: str) -> str | None:
+        """Place a single bracket leg with one retry.
+
+        Returns the broker order id, a deterministic SIM id when the API
+        accepted a paper order without returning an id, or None on failure.
+        An API error is never converted into a fake success — even in
+        simulation mode — so leg failures surface honestly.
+        """
+        last_error: str = ""
+        for attempt in (1, 2):
+            try:
+                data = self._http.post("/v2/orders", json=payload)
+                oid = str(data.get("orderId") or data.get("order_id") or "")
+                if oid:
+                    return oid
+                if self.cfg.simulation_mode:
+                    # Paper order accepted but no id returned — fabricate a
+                    # stable id so the bracket can be tracked in simulation.
+                    return sim_id
+                log.error("%s leg accepted but returned no orderId (attempt %d): %s",
+                          label, attempt, data)
+                last_error = "no orderId in response"
+            except Exception as e:
+                last_error = str(e)
+                log.error("%s leg failed (attempt %d/2): %s", label, attempt, last_error[:200])
+        log.error("%s leg could not be placed after retry: %s", label, last_error[:200])
+        return None
+
     def place_order(
         self,
         symbol: str,
@@ -419,79 +447,10 @@ class DhanProvider(BrokerProvider):
         if self.cfg.simulation_mode:
             payload["orderFlag"] = "PAPER"
 
+        # ── Entry leg ─────────────────────────────────────────────────
         try:
             log.info("place_order payload: %s", {k: v for k, v in payload.items() if k != "dhanClientId"})
             data = self._http.post("/v2/orders", json=payload)
-            order_id = str(data.get("orderId") or data.get("order_id") or f"PAPER-{symbol}-{qty}")
-            sl_id = None
-            tp_id = None
-
-            if sl is not None and order_type.upper() not in {"STOP_LOSS", "STOP_LOSS_MARKET"}:
-                sl_side = "SELL" if side.upper() == "BUY" else "BUY"
-                sl_payload = {
-                    "dhanClientId": payload["dhanClientId"],
-                    "transactionType": sl_side,
-                    "exchangeSegment": payload["exchangeSegment"],
-                    "productType": payload["productType"],
-                    "orderType": "STOP_LOSS_MARKET",
-                    "validity": payload["validity"],
-                    "tradingSymbol": payload["tradingSymbol"],
-                    "securityId": payload["securityId"],
-                    "quantity": qty,
-                    "triggerPrice": sl,
-                }
-                if self.cfg.simulation_mode:
-                    sl_payload["orderFlag"] = "PAPER"
-                log.info("SL payload: %s", {k: v for k, v in sl_payload.items() if k != "dhanClientId"})
-                sl_data = self._http.post("/v2/orders", json=sl_payload)
-                sl_id = str(sl_data.get("orderId") or "")
-
-            if tp is not None:
-                tp_side = "SELL" if side.upper() == "BUY" else "BUY"
-                tp_payload = {
-                    "dhanClientId": payload["dhanClientId"],
-                    "transactionType": tp_side,
-                    "exchangeSegment": payload["exchangeSegment"],
-                    "productType": payload["productType"],
-                    "orderType": "LIMIT",
-                    "validity": payload["validity"],
-                    "tradingSymbol": payload["tradingSymbol"],
-                    "securityId": payload["securityId"],
-                    "quantity": qty,
-                    "price": tp,
-                }
-                if self.cfg.simulation_mode:
-                    tp_payload["orderFlag"] = "PAPER"
-                tp_data = self._http.post("/v2/orders", json=tp_payload)
-                tp_id = str(tp_data.get("orderId") or "")
-
-            if self.cfg.simulation_mode:
-                sl_id = sl_id or f"SIM-SL-{symbol}-{qty}"
-                tp_id = tp_id or f"SIM-TP-{symbol}-{qty}"
-
-            # Reset auth failure counter on successful order placement
-            self._auth_failure_count = 0
-
-            # Extract actual fill price from Dhan response for MARKET orders
-            fill_price = price  # limit orders use the limit price
-            if price is None:   # MARKET orders — extract from broker response
-                fill_price = float(
-                    data.get("averageTradedPrice")
-                    or data.get("filledPrice")
-                    or data.get("average_price")
-                    or data.get("tradedPrice")
-                    or 0
-                ) or None
-
-            return OrderResult(
-                success=True,
-                order_id=order_id,
-                message="Order placed",
-                fill_price=fill_price,
-                sl_order_id=sl_id,
-                tp_order_id=tp_id,
-                raw=data,
-            )
         except Exception as e:
             detail = str(e)
             if "Invalid IP" in detail or "401" in detail:
@@ -499,16 +458,93 @@ class DhanProvider(BrokerProvider):
                 self._record_auth_failure(f"place_order {symbol}")
             else:
                 log.error("place_order failed: %s", detail[:200])
+            return OrderResult(success=False, order_id=None, message=detail)
+
+        order_id = str(data.get("orderId") or data.get("order_id") or "")
+        if not order_id:
             if self.cfg.simulation_mode:
-                return OrderResult(
-                    success=True,
-                    order_id=f"SIM-{symbol}-{side}-{qty}",
-                    message=f"Simulated order (API error: {e})",
-                    fill_price=price or 0.0,
-                    sl_order_id=f"SIM-SL-{symbol}-{qty}",
-                    tp_order_id=f"SIM-TP-{symbol}-{qty}",
+                order_id = f"PAPER-{symbol}-{qty}"
+            else:
+                # Accepted-but-unidentified orders cannot be tracked or
+                # cancelled — treat as failure and alert loudly.
+                log.critical(
+                    "Entry order for %s accepted but Dhan returned no orderId — "
+                    "manual reconciliation may be required: %s", symbol, data,
                 )
-            return OrderResult(success=False, order_id=None, message=str(e))
+                return OrderResult(success=False, order_id=None, message="No orderId in entry response")
+
+        self._auth_failure_count = 0
+
+        # ── Bracket legs: each isolated, one retry, no fake success ──
+        sl_id: str | None = None
+        tp_id: str | None = None
+
+        if sl is not None and order_type.upper() not in {"STOP_LOSS", "STOP_LOSS_MARKET"}:
+            sl_side = "SELL" if side.upper() == "BUY" else "BUY"
+            sl_payload = {
+                "dhanClientId": payload["dhanClientId"],
+                "transactionType": sl_side,
+                "exchangeSegment": payload["exchangeSegment"],
+                "productType": payload["productType"],
+                "orderType": "STOP_LOSS_MARKET",
+                "validity": payload["validity"],
+                "tradingSymbol": payload["tradingSymbol"],
+                "securityId": payload["securityId"],
+                "quantity": qty,
+                "triggerPrice": sl,
+            }
+            if self.cfg.simulation_mode:
+                sl_payload["orderFlag"] = "PAPER"
+            log.info("SL payload: %s", {k: v for k, v in sl_payload.items() if k != "dhanClientId"})
+            sl_id = self._place_leg(sl_payload, "SL", f"SIM-SL-{symbol}-{qty}")
+
+        if tp is not None:
+            tp_side = "SELL" if side.upper() == "BUY" else "BUY"
+            tp_payload = {
+                "dhanClientId": payload["dhanClientId"],
+                "transactionType": tp_side,
+                "exchangeSegment": payload["exchangeSegment"],
+                "productType": payload["productType"],
+                "orderType": "LIMIT",
+                "validity": payload["validity"],
+                "tradingSymbol": payload["tradingSymbol"],
+                "securityId": payload["securityId"],
+                "quantity": qty,
+                "price": tp,
+            }
+            if self.cfg.simulation_mode:
+                tp_payload["orderFlag"] = "PAPER"
+            tp_id = self._place_leg(tp_payload, "TP", f"SIM-TP-{symbol}-{qty}")
+
+        # Extract actual fill price from Dhan response for MARKET orders
+        fill_price = price  # limit orders use the limit price
+        if price is None:   # MARKET orders — extract from broker response
+            fill_price = float(
+                data.get("averageTradedPrice")
+                or data.get("filledPrice")
+                or data.get("average_price")
+                or data.get("tradedPrice")
+                or 0
+            ) or None
+
+        # The entry is live, so report success with whatever leg ids exist.
+        # Missing SL/TP ids are handled by the executor's naked-entry guard
+        # (cancel + flatten) — returning success=False here would leave the
+        # entry orphaned and trigger a duplicate placement next cycle.
+        legs_ok = (sl is None or sl_id) and (tp is None or tp_id)
+        return OrderResult(
+            success=True,
+            order_id=order_id,
+            message="Order placed" if legs_ok else "Entry placed but bracket leg(s) failed",
+            fill_price=fill_price,
+            sl_order_id=sl_id,
+            tp_order_id=tp_id,
+            raw=data,
+        )
+
+    @staticmethod
+    def _is_simulated_order_id(order_id: str) -> bool:
+        return order_id.startswith(("SIM-", "PAPER-"))
 
     def modify_order(
         self,
@@ -517,6 +553,10 @@ class DhanProvider(BrokerProvider):
         tp: float | None = None,
         qty: int | None = None,
     ) -> OrderResult:
+        # Simulated orders don't exist broker-side — succeed locally without
+        # an API call instead of masking a guaranteed API error as success.
+        if self._is_simulated_order_id(order_id):
+            return OrderResult(success=True, order_id=order_id, message="Simulated modify")
         payload: dict[str, Any] = {"orderId": order_id}
         if sl is not None:
             payload["triggerPrice"] = sl
@@ -528,17 +568,17 @@ class DhanProvider(BrokerProvider):
             data = self._http.put("/v2/orders", json=payload)
             return OrderResult(success=True, order_id=order_id, message="Order modified", raw=data)
         except Exception as e:
-            if self.cfg.simulation_mode:
-                return OrderResult(success=True, order_id=order_id, message=f"Simulated modify: {e}")
             return OrderResult(success=False, order_id=order_id, message=str(e))
 
     def cancel_order(self, order_id: str) -> bool:
+        if self._is_simulated_order_id(order_id):
+            return True
         try:
             self._http.delete(f"/v2/orders/{order_id}")
             return True
         except Exception as e:
             log.warning("cancel_order failed: %s", e)
-            return self.cfg.simulation_mode
+            return False
 
     def _extract_ltp(self, data: dict[str, Any], segment: str, security_id: str) -> float:
         seg_data = (data.get("data") or {}).get(segment) or {}

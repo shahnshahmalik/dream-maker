@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from typing import Callable
 
 from models.trade_plan import TradeDirection
 
@@ -17,6 +18,7 @@ class StrikeSelection:
     margin_required: float
     affordable: bool
     reason: str
+    lot_size: int = 1
 
 
 _OPTION_RE = re.compile(r"(\d+)(CE|PE)$", re.IGNORECASE)
@@ -73,6 +75,36 @@ def _estimate_option_premium(ltp: float, strike: float, direction: TradeDirectio
     return max(base, distance * 0.15, 15.0)
 
 
+def _resolve_premium_and_lot(
+    contract: str,
+    spot: float,
+    strike: float,
+    direction: TradeDirection,
+    fallback_lot: int,
+    premium_lookup: Callable[[str], float | None] | None,
+    lot_size_lookup: Callable[[str], int | None] | None,
+) -> tuple[float, int, str]:
+    """Resolve real premium and lot size for a contract, with estimation fallback."""
+    lot = fallback_lot
+    if lot_size_lookup is not None:
+        try:
+            real_lot = lot_size_lookup(contract)
+        except Exception:
+            real_lot = None
+        if real_lot and real_lot > 0:
+            lot = real_lot
+
+    premium: float | None = None
+    if premium_lookup is not None:
+        try:
+            premium = premium_lookup(contract)
+        except Exception:
+            premium = None
+    if premium and premium > 0:
+        return premium, lot, "live"
+    return _estimate_option_premium(spot, strike, direction), lot, "estimated"
+
+
 def select_strike_and_size(
     trading_symbol: str,
     direction: TradeDirection,
@@ -82,6 +114,9 @@ def select_strike_and_size(
     available_funds: float,
     risk_pct: float,
     ltp: float | None = None,
+    premium_lookup: Callable[[str], float | None] | None = None,
+    lot_size_lookup: Callable[[str], int | None] | None = None,
+    contract_resolver: Callable[[str, float, str], str | None] | None = None,
 ) -> StrikeSelection:
     spot = ltp or entry
     lot = _lot_size(trading_symbol)
@@ -108,7 +143,9 @@ def select_strike_and_size(
             trading_symbol = trading_symbol.upper().replace("CE", "PE", 1)
             lot = _lot_size(trading_symbol)
 
-        premium = _estimate_option_premium(spot, strike, direction)
+        premium, lot, premium_source = _resolve_premium_and_lot(
+            trading_symbol, spot, strike, direction, lot, premium_lookup, lot_size_lookup,
+        )
         margin_per_lot = premium * lot
         max_lots = int(available_funds // margin_per_lot) if margin_per_lot else 0
         risk_lots = int(risk_amount // margin_per_lot) if margin_per_lot else 0
@@ -121,33 +158,47 @@ def select_strike_and_size(
             strike=strike,
             margin_required=margin_per_lot * lots if affordable else margin_per_lot,
             affordable=affordable,
-            reason="ok" if affordable else f"Cannot afford 1 lot (margin ~{margin_per_lot:.0f})",
+            reason=(
+                f"ok ({premium_source} premium ~{premium:.2f})"
+                if affordable
+                else f"Cannot afford 1 lot ({premium_source} margin ~{margin_per_lot:.0f})"
+            ),
+            lot_size=lot,
         )
 
     if "CE" not in upper and "PE" not in upper and "FUT" not in upper:
         step = _index_step(trading_symbol)
         atm = _round_strike(spot, step)
-        if direction == TradeDirection.LONG:
-            strike = atm
-            suffix = "CE"
-        else:
-            strike = atm
-            suffix = "PE"
-        premium = _estimate_option_premium(spot, strike, direction)
+        strike = atm
+        suffix = "CE" if direction == TradeDirection.LONG else "PE"
+
+        underlying = trading_symbol.upper().replace("IDX", "").replace("50", "")
+        sym: str | None = None
+        if contract_resolver is not None:
+            try:
+                sym = contract_resolver(underlying, strike, suffix)
+            except Exception:
+                sym = None
+        if not sym:
+            sym = f"{underlying}{int(strike)}{suffix}"
+
+        premium, lot, premium_source = _resolve_premium_and_lot(
+            sym, spot, strike, direction, lot, premium_lookup, lot_size_lookup,
+        )
         margin_per_lot = premium * lot
         max_lots = int(available_funds // margin_per_lot) if margin_per_lot else 0
         if max_lots >= 1:
             risk_lots = int(risk_amount // margin_per_lot) if margin_per_lot else 0
             lots = min(max_lots, max(1, risk_lots))
             qty = lots * lot
-            sym = f"{trading_symbol.replace('IDX', '').replace('50', '')}{int(strike)}{suffix}"
             return StrikeSelection(
                 tradable_symbol=sym,
                 qty=qty,
                 strike=strike,
                 margin_required=margin_per_lot * lots,
                 affordable=True,
-                reason=f"Selected ATM {suffix} strike {strike}",
+                reason=f"Selected ATM {suffix} strike {strike} ({premium_source} premium ~{premium:.2f})",
+                lot_size=lot,
             )
 
     margin_rate = _margin_rate(trading_symbol)
@@ -165,4 +216,5 @@ def select_strike_and_size(
         margin_required=margin_per_lot * lots if affordable else margin_per_lot,
         affordable=affordable,
         reason="ok" if affordable else f"Insufficient margin for 1 lot (~{margin_per_lot:.0f})",
+        lot_size=lot,
     )

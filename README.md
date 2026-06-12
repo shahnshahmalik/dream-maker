@@ -1,6 +1,6 @@
 # Dream Maker
 
-Autonomous AI trading agent for Indian markets. Supports Dhan (primary) and Groww (equity-only) via a broker provider pattern, with LLM-agnostic AI review on position divergence.
+Autonomous AI trading agent for Indian markets. Trades NSE F&O via Dhan through a broker provider pattern, with LLM-agnostic AI review on position divergence.
 
 ## Quick start
 
@@ -50,7 +50,6 @@ State and audit log persist in the `dream-maker-data` volume. Container timezone
 | `SIMULATION_MODE` | `true` uses Dhan paper orders |
 | `DHAN_ACCESS_TOKEN` | Dhan API token |
 | `DHAN_CLIENT_ID` | Dhan client ID (required for LTP/market feed APIs) |
-| `GROWW_SESSION_TOKEN` | Groww session token (experimental) |
 
 ## Trade flow
 
@@ -111,7 +110,7 @@ You will receive messages for bracket entries, closes, trail updates, AI level s
 
 ## Architecture
 
-- **Broker providers** — `providers/dhan.py`, `providers/groww.py`
+- **Broker providers** — `providers/dhan.py`
 - **LLM providers** — `llm/openai_compat.py`, `llm/deepseek.py`, `llm/anthropic.py`, rule-based fallback
 - **Analysis pipeline** — 5-step macro → HTF/LTF → fundamental → projection
 - **Audit log** — append-only `trade_log.jsonl` in [`audit/trade_logger.py`](audit/trade_logger.py)

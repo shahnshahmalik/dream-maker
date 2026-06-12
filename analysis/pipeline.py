@@ -115,6 +115,45 @@ class AnalysisPipeline:
         # For options, use underlying index close as spot for premium estimation,
         # NOT the option LTP (which can be ₹14 for a far-OTM, skewing margin 100x).
         spot_for_pricing = float(htf[-1].close) if is_option else (quote.ltp or tech.entry)
+
+        def _live_option_premium(contract: str) -> float | None:
+            """Quote the actual option contract; reject spot-scale fallbacks."""
+            try:
+                ltp_val = self.broker.get_quote(contract).ltp
+            except Exception:
+                return None
+            if ltp_val <= 0:
+                return None
+            # A premium at/near spot scale means the quote fell back to the
+            # underlying — unusable for sizing.
+            if spot_for_pricing > 0 and ltp_val >= spot_for_pricing * 0.25:
+                return None
+            return ltp_val
+
+        def _scrip_lot_size(contract: str) -> int | None:
+            try:
+                from scripts.scrip_master import ScripMaster
+                sm = ScripMaster()
+                try:
+                    return sm.get_lot_size(contract)
+                finally:
+                    sm.close()
+            except Exception:
+                return None
+
+        def _nearest_contract(underlying: str, strike_px: float, opt_type: str) -> str | None:
+            """Resolve a real nearest-expiry contract from the scrip master."""
+            try:
+                from scripts.scrip_master import ScripMaster
+                sm = ScripMaster()
+                try:
+                    rec = sm.find_contract(underlying, strike_px, opt_type)
+                finally:
+                    sm.close()
+                return ScripMaster.to_internal_symbol(rec) if rec else None
+            except Exception:
+                return None
+
         strike = select_strike_and_size(
             symbol,
             tech.direction,
@@ -123,6 +162,9 @@ class AnalysisPipeline:
             available_funds=funds.available,
             risk_pct=self.cfg.risk_pct_per_trade,
             ltp=spot_for_pricing,
+            premium_lookup=_live_option_premium,
+            lot_size_lookup=_scrip_lot_size,
+            contract_resolver=_nearest_contract,
         )
         if not strike.affordable or strike.qty <= 0:
             return PipelineResult(symbol, macro, tech, fund.summary, None, strike.reason)
@@ -147,14 +189,49 @@ class AnalysisPipeline:
         if is_scalp:
             tol = min(tol, self.cfg.scalp_max_sl_pct / 100.0 * 0.5)
 
-        # ── Option premium scaling: tech levels are in NIFTY points (underlying).
-        # Convert to option premium equivalents so entry_watcher matches correctly.
-        option_ltp = quote.ltp
-        if is_option and option_ltp > 0 and tech.entry > 0:
-            nifty_entry = tech.entry
-            sl_pct = abs(nifty_entry - tech.stop_loss) / nifty_entry
-            tp1_pct = abs(tech.tp1 - nifty_entry) / nifty_entry
-            tp2_pct = abs(tech.tp2 - nifty_entry) / nifty_entry if tech.tp2 else 0
+        # ── Option premium scaling ──────────────────────────────────────
+        # Technical levels are computed on the underlying (index points).
+        # Whenever the *tradable* contract is an option — whether the
+        # configured symbol is an option or the strike selector picked one
+        # from an index symbol — entry/SL/TP must be converted to the option
+        # premium scale. Otherwise the broker receives index-scale (or even
+        # negative) trigger prices, rejects the bracket legs, and the
+        # naked-entry guard cancels the freshly placed entry.
+        tradable = strike.tradable_symbol
+        tradable_is_option = tradable.upper().endswith(("CE", "PE"))
+
+        if tradable_is_option:
+            if tradable.upper() == symbol.upper():
+                option_ltp = quote.ltp
+            else:
+                option_ltp = self.broker.get_quote(tradable).ltp
+
+            # An option premium should be a small fraction of spot. A value
+            # at/near spot scale means the quote fell back to the underlying
+            # (or failed) — trading on it would produce garbage brackets.
+            max_plausible = spot_for_pricing * 0.25 if spot_for_pricing > 0 else 0
+            if option_ltp <= 0 or (max_plausible and option_ltp >= max_plausible):
+                return PipelineResult(
+                    symbol, macro, tech, fund.summary, None,
+                    f"Option premium for {tradable} unavailable or implausible "
+                    f"(ltp={option_ltp:.2f}, spot={spot_for_pricing:.2f}) — paused",
+                )
+
+            underlying_entry = tech.entry
+            if underlying_entry <= 0:
+                return PipelineResult(
+                    symbol, macro, tech, fund.summary, None,
+                    "Invalid technical entry level — paused",
+                )
+            sl_pct = abs(underlying_entry - tech.stop_loss) / underlying_entry
+            tp1_pct = abs(tech.tp1 - underlying_entry) / underlying_entry
+            tp2_pct = abs(tech.tp2 - underlying_entry) / underlying_entry if tech.tp2 else 0.0
+            if not (0 < sl_pct < 0.95) or not (0 < tp1_pct < 0.95) or tp2_pct >= 0.95:
+                return PipelineResult(
+                    symbol, macro, tech, fund.summary, None,
+                    f"Implausible SL/TP distances (sl={sl_pct:.1%}, tp1={tp1_pct:.1%}, "
+                    f"tp2={tp2_pct:.1%}) — paused",
+                )
             if tech.direction == TradeDirection.LONG:
                 opt_sl = option_ltp * (1 - sl_pct)
                 opt_tp1 = option_ltp * (1 + tp1_pct)
@@ -165,14 +242,14 @@ class AnalysisPipeline:
                 opt_tp2 = option_ltp * (1 - tp2_pct) if tp2_pct else 0
             opt_entry = option_ltp
             log.info(
-                "Option scaling: NIFTY entry=%.0f→opt=%.2f SL=%.0f→%.2f TP=%.0f→%.2f",
-                nifty_entry, opt_entry, tech.stop_loss, opt_sl, tech.tp1, opt_tp1,
+                "Option scaling %s: underlying entry=%.2f→opt=%.2f SL=%.2f→%.2f TP=%.2f→%.2f",
+                tradable, underlying_entry, opt_entry, tech.stop_loss, opt_sl, tech.tp1, opt_tp1,
             )
         else:
             opt_entry = tech.entry
             opt_sl = tech.stop_loss
-            opt_tp1 = tech.take_profit_1
-            opt_tp2 = tech.take_profit_2
+            opt_tp1 = tech.tp1
+            opt_tp2 = tech.tp2
 
         plan = TradePlan(
             symbol=strike.tradable_symbol,
@@ -201,6 +278,7 @@ class AnalysisPipeline:
             meta={
                 "setup_type": tech.setup_type.value,
                 "confirmations": tech.confirmations,
+                "lot_size": max(1, strike.lot_size),
             },
         )
         # ── BUY_ONLY bracket flip: SHORT CE → BUY PE needs mirrored SL/TP ──
