@@ -67,6 +67,15 @@ class AnalysisPipeline:
         # are too volatile (₹140→₹2 in hours). Only use option LTP for execution.
         ltf_symbol = htf_symbol if is_option else symbol
         ltf = self.broker.get_ohlcv(ltf_symbol, "15m", 100)
+
+        # Pre-flight: reject data that looks like the synthetic fallback or an empty
+        # response (e.g. when Dhan token is expired and yfinance is unavailable).
+        htf_close = float(htf[-1].close) if htf else 0.0
+        if len(htf) < 20 or htf_close <= 0:
+            reason = f"Bad OHLCV data (htf_bars={len(htf)}, last_close={htf_close:.2f}) — paused"
+            self.trade_logger.log("PLAN", symbol, self.broker.name, reason, {"htf_bars": len(htf), "last_close": htf_close})
+            return PipelineResult(symbol, macro, None, fund.summary, None, reason)
+
         if is_option and len(htf) < 20:
             log.info("HTF using option underlying index (%d candles)", len(htf))
         tech = analyze_technical(htf, ltf, min_rr=self.cfg.min_rr_ratio)
@@ -211,11 +220,15 @@ class AnalysisPipeline:
             # (or failed) — trading on it would produce garbage brackets.
             max_plausible = spot_for_pricing * 0.25 if spot_for_pricing > 0 else 0
             if option_ltp <= 0 or (max_plausible and option_ltp >= max_plausible):
-                return PipelineResult(
-                    symbol, macro, tech, fund.summary, None,
+                reason = (
                     f"Option premium for {tradable} unavailable or implausible "
-                    f"(ltp={option_ltp:.2f}, spot={spot_for_pricing:.2f}) — paused",
+                    f"(ltp={option_ltp:.2f}, spot={spot_for_pricing:.2f}) — paused"
                 )
+                self.trade_logger.log(
+                    "PLAN", symbol, self.broker.name, reason,
+                    {"tradable": tradable, "option_ltp": option_ltp, "spot": spot_for_pricing},
+                )
+                return PipelineResult(symbol, macro, tech, fund.summary, None, reason)
 
             underlying_entry = tech.entry
             if underlying_entry <= 0:

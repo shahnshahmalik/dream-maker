@@ -610,8 +610,10 @@ class DhanProvider(BrokerProvider):
             return self._fallback_quote(symbol)
 
     def _fallback_quote(self, symbol: str) -> Quote:
-        base = 24500.0 if "NIFTY" in symbol.upper() else 100.0
-        return Quote(symbol=symbol, ltp=base, bid=base * 0.999, ask=base * 1.001, volume=0)
+        # Return ltp=0 so callers treat this as "unavailable" rather than a plausible price.
+        # A non-zero fallback (e.g. hardcoded 24500) passes the option plausibility check
+        # and produces garbage brackets when the real quote is unavailable.
+        return Quote(symbol=symbol, ltp=0.0, bid=0.0, ask=0.0, volume=0)
 
     def get_ohlcv(self, symbol: str, timeframe: str, limit: int) -> list[OHLCV]:
         inst = self._resolve_instrument(symbol)

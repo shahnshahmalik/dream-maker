@@ -215,6 +215,8 @@ def _analyze_swing(
         return None
     if direction == TradeDirection.SHORT and stop_loss <= entry:
         return None
+    if tp1 <= 0 or tp2 <= 0:
+        return None
 
     strength = 0.0
     strength += 0.40  # Base strength for having a trend
@@ -306,6 +308,8 @@ def _analyze_momentum_scalp(
         bias = f"LTF momentum scalp ({', '.join(reasons[:3])})"
 
     if sl_dist <= 0:
+        return None
+    if tp1 <= 0 or tp2 <= 0:
         return None
 
     rr = min_rr
@@ -525,6 +529,9 @@ def _analyze_candlestick_scalp(
         tp2 = entry - sl_dist * (min_rr * 2.0)
 
     direction = TradeDirection.LONG if pattern.direction == "LONG" else TradeDirection.SHORT
+
+    if tp1 <= 0 or tp2 <= 0:
+        return None
 
     # Check for doji context — stronger signal if preceded by doji
     doji_idx = find_recent_doji(ltf_candles, lookback=5)
