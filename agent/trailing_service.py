@@ -66,7 +66,7 @@ class TrailingService:
             return
         entry = plan.entry_price or plan.entry_target()
         trail_meta = plan.meta.get("trail", {})
-        is_scalp = plan.meta.get("setup_type") == "momentum_scalp"
+        is_scalp = plan.meta.get("setup_type") == "stacked_sweep"
         trail_activate = self.cfg.scalp_trail_activate_pct if is_scalp else self.cfg.trail_activate_pct
         trail_sl_distance = self.cfg.scalp_trail_sl_distance_pct if is_scalp else self.cfg.trail_sl_distance_pct
         breakeven_progress = (

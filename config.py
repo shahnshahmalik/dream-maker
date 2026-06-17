@@ -83,6 +83,7 @@ class Config:
     scalp_min_signal_strength: float
     scalp_max_sl_pct: float
     scalp_min_confirmations: int
+    active_strategy: str  # "all" or a specific strategy name e.g. "three_candle"
     scalp_trail_activate_pct: float
     scalp_trail_sl_distance_pct: float
     scalp_trail_breakeven_progress_pct: float
@@ -178,6 +179,7 @@ def load_config() -> Config:
         ),
         scalp_max_sl_pct=float(os.getenv("SCALP_MAX_SL_PCT", y.get("scalp_max_sl_pct", 0.35))),
         scalp_min_confirmations=int(os.getenv("SCALP_MIN_CONFIRMATIONS", y.get("scalp_min_confirmations", 1))),
+        active_strategy=str(os.getenv("ACTIVE_STRATEGY", y.get("active_strategy", "all"))),
         scalp_trail_activate_pct=float(
             os.getenv("SCALP_TRAIL_ACTIVATE_PCT", y.get("scalp_trail_activate_pct", 0.25))
         ),

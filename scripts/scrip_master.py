@@ -264,12 +264,16 @@ class ScripMaster:
         The trading_symbol in the CSV is like 'BANKNIFTY-Jun2026-65400-CE'.
         Our internal format is 'BANKNIFTY26JUN65400CE'.
         This method normalizes between them.
+
+        When multiple rows share the same trading_symbol (different weekly expiries
+        within the same month), we pick the nearest future (non-expired) expiry to
+        avoid resolving to an already-expired contract.
         """
-        # Try exact match first
-        row = self.conn.execute(
-            "SELECT security_id FROM scrip_master WHERE trading_symbol = ? LIMIT 1",
+        # Try exact match — prefer nearest non-expired expiry, fall back to absolute nearest
+        row = self._query_non_expired_or_nearest(
+            "SELECT security_id FROM scrip_master WHERE trading_symbol = ?",
             (trading_symbol,),
-        ).fetchone()
+        )
         if row:
             return int(row["security_id"])
 
@@ -288,14 +292,34 @@ class ScripMaster:
                 f"{m.group('underlying')}-{month_name}{full_year}-"
                 f"{m.group('strike')}-{m.group('type')}"
             )
-            row = self.conn.execute(
-                "SELECT security_id FROM scrip_master WHERE trading_symbol = ? LIMIT 1",
+            row = self._query_non_expired_or_nearest(
+                "SELECT security_id FROM scrip_master WHERE trading_symbol = ?",
                 (csv_format,),
-            ).fetchone()
+            )
             if row:
                 return int(row["security_id"])
 
         return None
+
+    def _query_non_expired_or_nearest(
+        self, base_sql: str, params: tuple
+    ) -> sqlite3.Row | None:
+        """Run base_sql with an added expiry filter, falling back to nearest expiry.
+
+        Prefers the nearest non-expired row. If all rows are expired, returns
+        the most-recent expired one (caller's problem to handle; at least it's
+        the correct contract rather than a stale one from a prior weekly cycle).
+        """
+        future_sql = (
+            base_sql
+            + " AND date(expiry_date) >= date('now') ORDER BY date(expiry_date) ASC LIMIT 1"
+        )
+        row = self.conn.execute(future_sql, params).fetchone()
+        if row:
+            return row
+        # All expired — return nearest (most-recent) expiry as last resort
+        fallback_sql = base_sql + " ORDER BY date(expiry_date) DESC LIMIT 1"
+        return self.conn.execute(fallback_sql, params).fetchone()
 
     def find_contract(
         self,
@@ -387,12 +411,12 @@ class ScripMaster:
 
         Handles format conversion between internal (BANKNIFTY26JUN54400CE)
         and CSV (BANKNIFTY-Jun2026-54400-CE) formats.
+        Picks the nearest non-expired row to avoid stale weekly expiry matches.
         """
-        # Try exact match first
-        row = self.conn.execute(
-            "SELECT lot_size FROM scrip_master WHERE trading_symbol = ? LIMIT 1",
+        row = self._query_non_expired_or_nearest(
+            "SELECT lot_size FROM scrip_master WHERE trading_symbol = ?",
             (trading_symbol,),
-        ).fetchone()
+        )
         if row:
             return int(row["lot_size"])
 
@@ -411,10 +435,10 @@ class ScripMaster:
                 f"{m.group('underlying')}-{month_name}{full_year}-"
                 f"{m.group('strike')}-{m.group('type')}"
             )
-            row2 = self.conn.execute(
-                "SELECT lot_size FROM scrip_master WHERE trading_symbol = ? LIMIT 1",
+            row2 = self._query_non_expired_or_nearest(
+                "SELECT lot_size FROM scrip_master WHERE trading_symbol = ?",
                 (csv_format,),
-            ).fetchone()
+            )
             if row2:
                 return int(row2["lot_size"])
 

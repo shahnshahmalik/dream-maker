@@ -113,7 +113,7 @@ def _tech(direction=TradeDirection.LONG, entry=24500.0, sl=24400.0,
         direction=direction,
         bias_source="test",
         signal_strength=0.9,
-        setup_type=SetupType.SWING,
+        setup_type=SetupType.STACKED_SWEEP,
     )
 
 

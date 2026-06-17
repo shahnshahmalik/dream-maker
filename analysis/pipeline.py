@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from analysis.fundamental import check_fundamental
 from analysis.macro import MacroContext, classify_macro
-from analysis.technical import SetupType, TechnicalContext, analyze_technical, momentum_confirmation
+from analysis.technical import SetupType, TechnicalContext, analyze_technical
 from config import Config
 from audit.trade_logger import TradeLogger
 from models.trade_plan import EntryType, PlanStatus, TradeDirection, TradePlan, validate_plan
@@ -78,7 +78,11 @@ class AnalysisPipeline:
 
         if is_option and len(htf) < 20:
             log.info("HTF using option underlying index (%d candles)", len(htf))
-        tech = analyze_technical(htf, ltf, min_rr=self.cfg.min_rr_ratio)
+        tech = analyze_technical(
+            htf, ltf,
+            min_rr=self.cfg.min_rr_ratio,
+            active_strategy=self.cfg.active_strategy,
+        )
         setup_label = tech.setup_type.value if tech else "none"
         self.trade_logger.log(
             "PLAN", symbol, self.broker.name,
@@ -101,7 +105,9 @@ class AnalysisPipeline:
         if tech is None:
             return PipelineResult(symbol, macro, None, fund.summary, None, "No strong technical setup — paused")
 
-        is_scalp = tech.setup_type == SetupType.MOMENTUM_SCALP
+        is_scalp = tech.setup_type in (
+            SetupType.STACKED_SWEEP,
+        )
         min_strength = self.cfg.scalp_min_signal_strength if is_scalp else self.cfg.min_signal_strength
         required_rr = self.cfg.scalp_min_rr_ratio if is_scalp else self.cfg.min_rr_ratio
 

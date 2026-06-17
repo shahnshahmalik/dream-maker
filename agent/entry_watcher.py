@@ -67,7 +67,7 @@ class EntryWatcher:
         return self.cfg.trading_symbol
 
     def _is_scalp(self, plan: TradePlan) -> bool:
-        return plan.meta.get("setup_type") == "momentum_scalp"
+        return plan.meta.get("setup_type") == "stacked_sweep"
 
     def _live_momentum_confirmed(self, plan: TradePlan) -> bool:
         candles = self.broker.get_ohlcv(self._quote_symbol(plan), "5m", 20)

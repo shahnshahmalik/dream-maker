@@ -34,7 +34,8 @@ scalp_trail_breakeven_progress_pct: 15
 max_trades_per_day: 8
 daily_profit_target_pct: 3.0
 daily_loss_limit_inr: 1000
-entry_quality_threshold: 0.65
+entry_quality_threshold: 0.51
+active_strategy: stacked_sweep
 entry_require_pullback: true
 entry_require_volume_surge: true
 # TRADING_SYMBOL is required in .env (F&O only, e.g. NIFTY50IDX or NIFTY25JUNFUT)
