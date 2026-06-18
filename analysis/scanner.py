@@ -15,6 +15,8 @@ from analysis.day_classifier import DayGate
 from analysis.pipeline import AnalysisPipeline, PipelineResult
 from analysis.technical import (
     SetupType,
+    check_bb_confirmation,
+    check_orb_confirmation,
     check_pullback_to_ema,
     check_volume_surge,
     score_setup,

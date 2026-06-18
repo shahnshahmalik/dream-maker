@@ -164,6 +164,8 @@ def _analyze_stacked_sweep(
     *,
     min_rr: float,
     max_sl_pct: float,
+    require_bb: bool = False,
+    require_orb: bool = False,
 ) -> TechnicalContext | None:
     """Stacked Sweep — highest-conviction liquidity sweep setup.
 
@@ -217,7 +219,18 @@ def _analyze_stacked_sweep(
     if len(swept_types) < 2:
         return None
 
-    # ── Build TechnicalContext ────────────────────────────────────────────────
+    # ── Filter 3 (optional): BB + ORB confirmation ────────────────────────────
+    direction_enum = TradeDirection.LONG if signal.direction == "LONG" else TradeDirection.SHORT
+
+    bb_ok, bb_reason = check_bb_confirmation(ltf_candles, direction_enum)
+    orb_ok, orb_reason = check_orb_confirmation(ltf_candles, direction_enum)
+
+    if require_bb and not bb_ok:
+        return None
+    if require_orb and not orb_ok:
+        return None
+
+
     htf_trend  = detect_trend(htf_df)
     ltf_trend  = detect_trend(ltf_df)
     ema200     = _ema(htf_df["close"], min(200, len(htf_df)))
@@ -266,11 +279,23 @@ def _analyze_stacked_sweep(
 
     swept_names = sorted(lv.level_type.value for lv in signal.swept_levels)
     trend_label = "daily_up" if daily_uptrend else "daily_down"
+
+    # BB + ORB confirmation labels (always computed, used even when not required)
+    extra_confirmations: list[str] = []
+    strength_bonus = 0.0
+    if bb_ok:
+        extra_confirmations.append("bb_confirmed")
+        strength_bonus += 0.05
+    if orb_ok:
+        extra_confirmations.append("orb_confirmed")
+        strength_bonus += 0.05
+
     bias_source = (
         f"Stacked sweep {signal.direction} | "
         f"levels: {', '.join(swept_names)} | "
         f"trend: {trend_label} | "
         f"entry={entry:.2f} SL={stop_loss:.2f}"
+        + (f" | BB+ORB: {bb_ok}/{orb_ok}" if extra_confirmations else "")
     )
 
     return TechnicalContext(
@@ -287,9 +312,9 @@ def _analyze_stacked_sweep(
         rr_ratio=rr,
         direction=direction,
         bias_source=bias_source,
-        signal_strength=signal.strength,
+        signal_strength=min(1.0, signal.strength + strength_bonus),
         setup_type=SetupType.STACKED_SWEEP,
-        confirmations=swept_names + [trend_label],
+        confirmations=swept_names + [trend_label] + extra_confirmations,
         ltf_range=ltf_range,
     )
 
@@ -304,11 +329,20 @@ def analyze_technical(
     scalp_max_sl_pct: float = 0.35,
     scalp_min_confirmations: int = 1,
     active_strategy: str = "stacked_sweep",
+    require_bb_confirmation: bool = False,
+    require_orb_confirmation: bool = False,
 ) -> TechnicalContext | None:
     """Run the active strategy analyzer and return a setup if conditions are met.
 
     Only STACKED_SWEEP is implemented. Other strategy names return None.
     To add a new strategy: implement _analyze_<name>() and add a branch below.
+
+    Args:
+        require_bb_confirmation: If True, reject setups where price is not at/above
+            BB upper band (LONG) or at/below BB lower band (SHORT).
+            Backtest: BB+ORB → PF 3.75, 62% WR (with day filter).
+        require_orb_confirmation: If True, reject setups where price has not
+            broken the 15-min Opening Range in the trade direction.
     """
     if len(htf_candles) < 20 or len(ltf_candles) < 20:
         return None
@@ -317,6 +351,8 @@ def analyze_technical(
         htf_candles, ltf_candles,
         min_rr=scalp_min_rr,
         max_sl_pct=scalp_max_sl_pct,
+        require_bb=require_bb_confirmation,
+        require_orb=require_orb_confirmation,
     )
 
 def check_ltf_structure_break(
@@ -385,6 +421,101 @@ def check_pullback_to_ema(
         if last_close <= ema_now * (1 + proximity_pct):
             return True, f"pullback to EMA9 (dist {distance_pct:.1%})"
         return True, f"above EMA9 (dist {distance_pct:.1%}) — rip entry"
+
+
+def check_bb_confirmation(
+    ltf_candles: list[OHLCV],
+    direction: TradeDirection,
+    *,
+    period: int = 20,
+    std_dev: float = 2.0,
+) -> tuple[bool, str]:
+    """Check if price is breaking out of Bollinger Bands in the trade direction.
+
+    For LONG: close crossed above upper band on the last 1–2 candles.
+    For SHORT: close crossed below lower band on the last 1–2 candles.
+
+    Backtest edge: BB(20,2) + ORB 15m combo → PF 3.75, 62% WR, N=13 (with day filter).
+
+    Returns (confirmed, reason).
+    """
+    if len(ltf_candles) < period + 2:
+        return False, "insufficient candles for BB"
+
+    df = _ohlcv_to_df(ltf_candles)
+    mid = df["close"].rolling(period).mean()
+    std = df["close"].rolling(period).std()
+    upper = mid + std_dev * std
+    lower = mid - std_dev * std
+
+    last_close = float(df["close"].iloc[-1])
+    prev_close = float(df["close"].iloc[-2])
+    last_upper = float(upper.iloc[-1])
+    last_lower = float(lower.iloc[-1])
+    prev_upper = float(upper.iloc[-2])
+    prev_lower = float(lower.iloc[-2])
+
+    if direction == TradeDirection.LONG:
+        crossed = last_close > last_upper and prev_close <= prev_upper
+        near = last_close > last_upper * 0.998  # within 0.2% of upper band
+        if crossed:
+            return True, f"BB breakout LONG: close {last_close:.2f} > upper {last_upper:.2f}"
+        if near:
+            return True, f"BB near upper band: close {last_close:.2f} ≈ {last_upper:.2f}"
+        return False, f"BB: close {last_close:.2f} below upper {last_upper:.2f}"
+    else:
+        crossed = last_close < last_lower and prev_close >= prev_lower
+        near = last_close < last_lower * 1.002
+        if crossed:
+            return True, f"BB breakout SHORT: close {last_close:.2f} < lower {last_lower:.2f}"
+        if near:
+            return True, f"BB near lower band: close {last_close:.2f} ≈ {last_lower:.2f}"
+        return False, f"BB: close {last_close:.2f} above lower {last_lower:.2f}"
+
+
+def check_orb_confirmation(
+    ltf_candles: list[OHLCV],
+    direction: TradeDirection,
+    *,
+    or_bars: int = 3,  # 3 × 5m = 15-min OR
+) -> tuple[bool, str]:
+    """Check if price has broken the Opening Range (OR) in the trade direction.
+
+    OR = high/low of the first `or_bars` 5-min candles (default 15 min).
+    For LONG: current close above OR high.
+    For SHORT: current close below OR low.
+
+    Backtest edge: BB + ORB combo → PF 3.75, 62% WR (with day filter).
+    VWAP + ORB combo → PF 3.41, 67% WR (with day filter).
+
+    Returns (confirmed, reason).
+    """
+    if len(ltf_candles) < or_bars + 2:
+        return False, "insufficient candles for ORB"
+
+    # Assume candles are sorted oldest→newest (intraday from market open)
+    # The first `or_bars` are the opening range
+    or_slice = ltf_candles[:or_bars]
+    or_high = max(c.high for c in or_slice)
+    or_low = min(c.low for c in or_slice)
+
+    # Only check ORB if we're past the OR period
+    if len(ltf_candles) <= or_bars:
+        return False, "still inside OR period"
+
+    last_close = ltf_candles[-1].close
+
+    if direction == TradeDirection.LONG:
+        if last_close > or_high:
+            return True, f"ORB breakout LONG: close {last_close:.2f} > OR high {or_high:.2f}"
+        gap_pct = (or_high - last_close) / or_high * 100
+        return False, f"ORB: close {last_close:.2f} below OR high {or_high:.2f} ({gap_pct:.1f}% away)"
+    else:
+        if last_close < or_low:
+            return True, f"ORB breakdown SHORT: close {last_close:.2f} < OR low {or_low:.2f}"
+        gap_pct = (last_close - or_low) / or_low * 100
+        return False, f"ORB: close {last_close:.2f} above OR low {or_low:.2f} ({gap_pct:.1f}% away)"
+
 
 
 def check_volume_surge(

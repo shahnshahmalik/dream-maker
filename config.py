@@ -102,6 +102,8 @@ class Config:
     entry_require_pullback: bool     # require price pullback to EMA before entry
     entry_require_volume_surge: bool # require volume > 1.2x average for entry
     day_gate_enabled: bool           # block trades on Range/Inside days, lock direction
+    require_bb_confirmation: bool    # BB(20,2) breakout must confirm sweep direction
+    require_orb_confirmation: bool   # 15-min ORB must be broken in sweep direction
 
     dhan_access_token: str
     dhan_client_id: str
@@ -225,4 +227,6 @@ def load_config() -> Config:
         entry_require_pullback=_bool(os.getenv("ENTRY_REQUIRE_PULLBACK"), default=y.get("entry_require_pullback", True)),
         entry_require_volume_surge=_bool(os.getenv("ENTRY_REQUIRE_VOLUME_SURGE"), default=y.get("entry_require_volume_surge", True)),
         day_gate_enabled=_bool(os.getenv("DAY_GATE_ENABLED"), default=y.get("day_gate_enabled", True)),
+        require_bb_confirmation=_bool(os.getenv("REQUIRE_BB_CONFIRMATION"), default=y.get("require_bb_confirmation", False)),
+        require_orb_confirmation=_bool(os.getenv("REQUIRE_ORB_CONFIRMATION"), default=y.get("require_orb_confirmation", False)),
     )

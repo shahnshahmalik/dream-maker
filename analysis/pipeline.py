@@ -82,6 +82,8 @@ class AnalysisPipeline:
             htf, ltf,
             min_rr=self.cfg.min_rr_ratio,
             active_strategy=self.cfg.active_strategy,
+            require_bb_confirmation=getattr(self.cfg, "require_bb_confirmation", False),
+            require_orb_confirmation=getattr(self.cfg, "require_orb_confirmation", False),
         )
         setup_label = tech.setup_type.value if tech else "none"
         self.trade_logger.log(
