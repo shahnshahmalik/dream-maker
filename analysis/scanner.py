@@ -86,6 +86,21 @@ class WatchlistScanner:
         symbol = self.cfg.trading_symbol
         results: list[PipelineResult] = []
 
+        # Inject day context into cfg so pipeline can pass it to analyze_technical.
+        # Using transient attributes — no persistence, reset each scan cycle.
+        self.cfg._day_type = day_class.day_type.value
+        self.cfg._allowed_direction = (
+            day_class.allowed_directions[0]
+            if day_class.allowed_directions and len(day_class.allowed_directions) == 1
+            else None
+        )
+        log.info(
+            "Day gate: %s → strategy=%s direction=%s",
+            day_class.day_type.value,
+            "bb_orb_breakout" if self.cfg._day_type in {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"} else "stacked_sweep",
+            self.cfg._allowed_direction.value if self.cfg._allowed_direction else "any",
+        )
+
         try:
             result = self.pipeline.run(symbol)
         except Exception as e:
@@ -99,8 +114,11 @@ class WatchlistScanner:
         plan = result.plan
         setup_type = plan.meta.get("setup_type", "swing")
 
-        # ── Gate 2.5: Direction locked by day type ──
-        if not day_class.allows_any_direction and not day_class.allows(plan.direction):
+        # ── Gate 2.5: Direction locked by day type (sweep only) ──
+        # BB_ORB_BREAKOUT already uses allowed_direction internally — no re-check needed.
+        from analysis.technical import SetupType
+        is_sweep = plan.meta.get("setup_type", "") == SetupType.STACKED_SWEEP.value
+        if is_sweep and not day_class.allows_any_direction and not day_class.allows(plan.direction):
             log.info(
                 "Direction gate blocked: %s wants %s but day_type=%s only allows %s",
                 plan.symbol,

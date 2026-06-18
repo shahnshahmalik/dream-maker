@@ -18,7 +18,8 @@ class Trend(str, Enum):
 
 
 class SetupType(str, Enum):
-    STACKED_SWEEP = "stacked_sweep"
+    STACKED_SWEEP = "stacked_sweep"    # V-Reversal days — liquidity sweep reversal
+    BB_ORB_BREAKOUT = "bb_orb_breakout"  # Trend/Gap days — BB + ORB momentum
 
 
 from analysis.liquidity_sweep import (
@@ -164,11 +165,10 @@ def _analyze_stacked_sweep(
     *,
     min_rr: float,
     max_sl_pct: float,
-    require_bb: bool = False,
-    require_orb: bool = False,
 ) -> TechnicalContext | None:
-    """Stacked Sweep — highest-conviction liquidity sweep setup.
+    """Stacked Sweep — highest-conviction reversal setup.
 
+    Used on V-Reversal days (75% of NIFTY trading days).
     Backtest result (Jan–Jun 2026, 15-min, 112 days):
         80% win rate | Profit factor 4.95 | 5 trades
 
@@ -219,18 +219,6 @@ def _analyze_stacked_sweep(
     if len(swept_types) < 2:
         return None
 
-    # ── Filter 3 (optional): BB + ORB confirmation ────────────────────────────
-    direction_enum = TradeDirection.LONG if signal.direction == "LONG" else TradeDirection.SHORT
-
-    bb_ok, bb_reason = check_bb_confirmation(ltf_candles, direction_enum)
-    orb_ok, orb_reason = check_orb_confirmation(ltf_candles, direction_enum)
-
-    if require_bb and not bb_ok:
-        return None
-    if require_orb and not orb_ok:
-        return None
-
-
     htf_trend  = detect_trend(htf_df)
     ltf_trend  = detect_trend(ltf_df)
     ema200     = _ema(htf_df["close"], min(200, len(htf_df)))
@@ -271,7 +259,6 @@ def _analyze_stacked_sweep(
         return None
 
     rr = abs(tp1 - entry) / sl_dist
-
     ltf_aligned = (
         (direction == TradeDirection.LONG  and ltf_trend == Trend.UPTREND)
         or (direction == TradeDirection.SHORT and ltf_trend == Trend.DOWNTREND)
@@ -279,23 +266,11 @@ def _analyze_stacked_sweep(
 
     swept_names = sorted(lv.level_type.value for lv in signal.swept_levels)
     trend_label = "daily_up" if daily_uptrend else "daily_down"
-
-    # BB + ORB confirmation labels (always computed, used even when not required)
-    extra_confirmations: list[str] = []
-    strength_bonus = 0.0
-    if bb_ok:
-        extra_confirmations.append("bb_confirmed")
-        strength_bonus += 0.05
-    if orb_ok:
-        extra_confirmations.append("orb_confirmed")
-        strength_bonus += 0.05
-
     bias_source = (
         f"Stacked sweep {signal.direction} | "
         f"levels: {', '.join(swept_names)} | "
         f"trend: {trend_label} | "
         f"entry={entry:.2f} SL={stop_loss:.2f}"
-        + (f" | BB+ORB: {bb_ok}/{orb_ok}" if extra_confirmations else "")
     )
 
     return TechnicalContext(
@@ -312,9 +287,140 @@ def _analyze_stacked_sweep(
         rr_ratio=rr,
         direction=direction,
         bias_source=bias_source,
-        signal_strength=min(1.0, signal.strength + strength_bonus),
+        signal_strength=signal.strength,
         setup_type=SetupType.STACKED_SWEEP,
-        confirmations=swept_names + [trend_label] + extra_confirmations,
+        confirmations=swept_names + [trend_label],
+        ltf_range=ltf_range,
+    )
+
+
+def _analyze_bb_orb_breakout(
+    htf_candles: list[OHLCV],
+    ltf_candles: list[OHLCV],
+    *,
+    min_rr: float,
+    max_sl_pct: float,
+    allowed_direction: TradeDirection,
+) -> TechnicalContext | None:
+    """BB + ORB Breakout — momentum confirmation for Trend/Gap days.
+
+    Used on Trend Day Up/Down and Gap days (13–14% of NIFTY trading days).
+    Backtest result (Jan–Jun 2026, with day-type filter):
+        BB + ORB combo: PF 3.75 | 62% WR | N=13
+        VWAP + ORB:     PF 3.41 | 67% WR | N=18
+
+    Entry logic:
+      - Price has broken the 15-min Opening Range in allowed_direction
+      - AND price is at/crossing BB(20,2) band in allowed_direction
+      - SL: opposite side of OR range + small buffer
+      - TP: entry +/- sl_dist * min_rr
+
+    This is a MOMENTUM setup — fire in the direction of the day trend.
+    The day gate already locked the direction; this just confirms the setup.
+    """
+    if len(ltf_candles) < 22 or len(htf_candles) < 20:
+        return None
+
+    # ── BB confirmation ───────────────────────────────────────────────────────
+    bb_ok, bb_reason = check_bb_confirmation(ltf_candles, allowed_direction)
+    if not bb_ok:
+        return None
+
+    # ── ORB confirmation ──────────────────────────────────────────────────────
+    orb_ok, orb_reason = check_orb_confirmation(ltf_candles, allowed_direction)
+    if not orb_ok:
+        return None
+
+    # ── Build levels from OR and ATR ──────────────────────────────────────────
+    ltf_df = _ohlcv_to_df(ltf_candles)
+    htf_df = _ohlcv_to_df(htf_candles)
+
+    # ATR for SL sizing
+    h, l, pc = ltf_df["high"], ltf_df["low"], ltf_df["close"].shift(1)
+    tr = pd.concat([(h - l), (h - pc).abs(), (l - pc).abs()], axis=1).max(axis=1)
+    atr = float(tr.ewm(span=14, adjust=False).mean().iloc[-1])
+
+    if atr <= 0:
+        return None
+
+    # OR boundaries (first 3 × 5m candles = 15 min)
+    _OR_BARS = 3
+    or_high = max(c.high for c in ltf_candles[:_OR_BARS])
+    or_low  = min(c.low  for c in ltf_candles[:_OR_BARS])
+
+    entry = float(ltf_df["close"].iloc[-1])
+    max_sl_abs = entry * max(0.05, max_sl_pct) / 100.0
+
+    if allowed_direction == TradeDirection.LONG:
+        # SL just below OR low (momentum stopped if OR low breaks)
+        raw_sl = or_low - atr * 0.2
+        stop_loss = max(raw_sl, entry - max_sl_abs)
+        if stop_loss >= entry:
+            return None
+        sl_dist = entry - stop_loss
+    else:
+        # SL just above OR high
+        raw_sl = or_high + atr * 0.2
+        stop_loss = min(raw_sl, entry + max_sl_abs)
+        if stop_loss <= entry:
+            return None
+        sl_dist = stop_loss - entry
+
+    if sl_dist <= 0:
+        return None
+
+    if allowed_direction == TradeDirection.LONG:
+        tp1 = entry + sl_dist * min_rr
+        tp2 = entry + sl_dist * min_rr * 1.5
+    else:
+        tp1 = entry - sl_dist * min_rr
+        tp2 = entry - sl_dist * min_rr * 1.5
+
+    if tp1 <= 0:
+        return None
+
+    rr = abs(tp1 - entry) / sl_dist
+
+    htf_trend = detect_trend(htf_df)
+    ltf_trend = detect_trend(ltf_df)
+    ema200    = _ema(htf_df["close"], min(200, len(htf_df)))
+    above_200 = float(htf_df["close"].iloc[-1]) > float(ema200.iloc[-1]) if len(ema200) else True
+    support   = float(htf_df["low"].tail(20).min())
+    resistance= float(htf_df["high"].tail(20).max())
+    ltf_range = float(ltf_df["high"].tail(14).max()) - float(ltf_df["low"].tail(14).min())
+
+    ltf_aligned = (
+        (allowed_direction == TradeDirection.LONG  and ltf_trend == Trend.UPTREND)
+        or (allowed_direction == TradeDirection.SHORT and ltf_trend == Trend.DOWNTREND)
+    )
+
+    # Signal strength: base 0.60 + ltf aligned bonus
+    strength = 0.60 + (0.10 if ltf_aligned else 0.0)
+
+    bias_source = (
+        f"BB+ORB breakout {allowed_direction.value} | "
+        f"OR={or_low:.2f}-{or_high:.2f} | "
+        f"entry={entry:.2f} SL={stop_loss:.2f} | "
+        f"{bb_reason} | {orb_reason}"
+    )
+
+    return TechnicalContext(
+        htf_trend=htf_trend,
+        ltf_trend=ltf_trend,
+        above_200ema=above_200,
+        support=support,
+        resistance=resistance,
+        ltf_aligned=ltf_aligned,
+        entry=entry,
+        stop_loss=stop_loss,
+        tp1=tp1,
+        tp2=tp2,
+        rr_ratio=rr,
+        direction=allowed_direction,
+        bias_source=bias_source,
+        signal_strength=min(1.0, strength),
+        setup_type=SetupType.BB_ORB_BREAKOUT,
+        confirmations=["bb_confirmed", "orb_confirmed"],
         ltf_range=ltf_range,
     )
 
@@ -329,30 +435,42 @@ def analyze_technical(
     scalp_max_sl_pct: float = 0.35,
     scalp_min_confirmations: int = 1,
     active_strategy: str = "stacked_sweep",
-    require_bb_confirmation: bool = False,
-    require_orb_confirmation: bool = False,
+    day_type: str = "unknown",
+    allowed_direction: TradeDirection | None = None,
 ) -> TechnicalContext | None:
-    """Run the active strategy analyzer and return a setup if conditions are met.
+    """Route to the correct strategy based on day type.
 
-    Only STACKED_SWEEP is implemented. Other strategy names return None.
-    To add a new strategy: implement _analyze_<name>() and add a branch below.
+    Day type routing:
+      V-Reversal Bull/Bear → stacked_sweep  (reversal at liquidity levels)
+      Trend Up/Down, Gap days → bb_orb_breakout  (momentum breakout)
+      Range/Inside → None  (day gate blocks before we get here)
+      Unknown → stacked_sweep  (default, fail open)
 
-    Args:
-        require_bb_confirmation: If True, reject setups where price is not at/above
-            BB upper band (LONG) or at/below BB lower band (SHORT).
-            Backtest: BB+ORB → PF 3.75, 62% WR (with day filter).
-        require_orb_confirmation: If True, reject setups where price has not
-            broken the 15-min Opening Range in the trade direction.
+    active_strategy='auto' (default) uses day_type routing.
+    active_strategy='stacked_sweep' or 'bb_orb_breakout' forces that strategy.
     """
     if len(htf_candles) < 20 or len(ltf_candles) < 20:
         return None
 
+    # ── Determine which strategy to run ──────────────────────────────────────
+    _REVERSAL_TYPES = {"v_reversal_bull", "v_reversal_bear", "unknown"}
+    _BREAKOUT_TYPES = {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"}
+
+    if active_strategy == "bb_orb_breakout" or day_type in _BREAKOUT_TYPES:
+        if allowed_direction is None:
+            return None  # breakout requires a locked direction from day gate
+        return _analyze_bb_orb_breakout(
+            htf_candles, ltf_candles,
+            min_rr=scalp_min_rr,
+            max_sl_pct=scalp_max_sl_pct,
+            allowed_direction=allowed_direction,
+        )
+
+    # Default: stacked_sweep for reversal days and unknown
     return _analyze_stacked_sweep(
         htf_candles, ltf_candles,
         min_rr=scalp_min_rr,
         max_sl_pct=scalp_max_sl_pct,
-        require_bb=require_bb_confirmation,
-        require_orb=require_orb_confirmation,
     )
 
 def check_ltf_structure_break(
