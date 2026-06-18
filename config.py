@@ -101,6 +101,7 @@ class Config:
     entry_quality_threshold: float   # minimum setup score to enter (0.65-0.75)
     entry_require_pullback: bool     # require price pullback to EMA before entry
     entry_require_volume_surge: bool # require volume > 1.2x average for entry
+    day_gate_enabled: bool           # block trades on Range/Inside days, lock direction
 
     dhan_access_token: str
     dhan_client_id: str
@@ -223,4 +224,5 @@ def load_config() -> Config:
         entry_quality_threshold=float(os.getenv("ENTRY_QUALITY_THRESHOLD", y.get("entry_quality_threshold", 0.70))),
         entry_require_pullback=_bool(os.getenv("ENTRY_REQUIRE_PULLBACK"), default=y.get("entry_require_pullback", True)),
         entry_require_volume_surge=_bool(os.getenv("ENTRY_REQUIRE_VOLUME_SURGE"), default=y.get("entry_require_volume_surge", True)),
+        day_gate_enabled=_bool(os.getenv("DAY_GATE_ENABLED"), default=y.get("day_gate_enabled", True)),
     )

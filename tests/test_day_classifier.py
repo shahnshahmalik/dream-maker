@@ -1,0 +1,246 @@
+"""Tests for analysis/day_classifier.py.
+
+Covers:
+- Range/Inside Day → blocked (OR range < 0.8%)
+- Gap Down & Rally → LONG only
+- Gap Down & Trend → SHORT only
+- Gap Up & Trend → LONG only
+- V-Reversal Bull → LONG only (no gap, bullish OR structure)
+- V-Reversal Bear → SHORT only (no gap, bearish OR structure)
+- Unknown (< 3 candles) → allows any
+- direction gate: allows() / is_blocked
+- DayGate cache: second call returns same result without re-fetch
+"""
+from __future__ import annotations
+
+from datetime import datetime
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from analysis.day_classifier import (
+    DayClassification,
+    DayGate,
+    DayType,
+    classify,
+)
+from models.orders import OHLCV
+from models.trade_plan import TradeDirection
+
+
+# ── Helpers ──────────────────────────────────────────────────────────
+
+def _candle(o: float, h: float, l: float, c: float, v: int = 100_000) -> OHLCV:
+    return OHLCV(timestamp=datetime(2026, 6, 17, 9, 15), open=o, high=h, low=l, close=c, volume=v)
+
+
+def _or_candles_bullish(base: float = 24000.0) -> list[OHLCV]:
+    """3 candles making HH/HL — bullish OR structure, range ~1.1% (>0.8% threshold)."""
+    return [
+        _candle(base, base + 80, base - 20, base + 70),
+        _candle(base + 70, base + 150, base + 40, base + 140),
+        _candle(base + 140, base + 250, base + 110, base + 240),
+    ]
+
+
+def _or_candles_bearish(base: float = 24000.0) -> list[OHLCV]:
+    """3 candles making LH/LL — bearish OR structure, range ~1.1% (>0.8% threshold)."""
+    return [
+        _candle(base, base + 20, base - 80, base - 70),
+        _candle(base - 70, base - 40, base - 150, base - 140),
+        _candle(base - 140, base - 110, base - 250, base - 240),
+    ]
+
+
+def _flat_candles(base: float = 24000.0) -> list[OHLCV]:
+    """3 nearly-flat candles — OR range < 0.3% → Range/Inside Day."""
+    return [
+        _candle(base, base + 20, base - 10, base + 5),
+        _candle(base + 5, base + 25, base - 5, base + 10),
+        _candle(base + 10, base + 30, base, base + 15),
+    ]
+
+
+# ── Tests: classify() ────────────────────────────────────────────────
+
+class TestClassifyRangeDay:
+    def test_range_inside_day_is_blocked(self):
+        base = 24000.0
+        candles = _flat_candles(base)
+        result = classify(candles, prev_close=base)
+
+        assert result.day_type == DayType.RANGE_INSIDE
+        assert result.is_blocked is True
+        assert result.allowed_directions is None
+
+    def test_range_inside_allows_no_direction(self):
+        base = 24000.0
+        result = classify(_flat_candles(base), prev_close=base)
+        assert result.allows(TradeDirection.LONG) is False
+        assert result.allows(TradeDirection.SHORT) is False
+
+
+class TestClassifyGapDays:
+    def test_gap_down_bullish_or_is_gap_down_rally(self):
+        base = 24000.0
+        open_price = base * (1 - 0.006)  # -0.6% gap
+        # Bullish OR structure, range ~1.1%
+        candles = [
+            _candle(open_price, open_price + 80, open_price - 20, open_price + 70),
+            _candle(open_price + 70, open_price + 150, open_price + 40, open_price + 140),
+            _candle(open_price + 140, open_price + 250, open_price + 110, open_price + 240),
+        ]
+        result = classify(candles, prev_close=base)
+
+        assert result.day_type == DayType.GAP_DOWN_RALLY
+        assert result.is_blocked is False
+        assert TradeDirection.LONG in (result.allowed_directions or [])
+        assert result.allows(TradeDirection.LONG) is True
+        assert result.allows(TradeDirection.SHORT) is False
+
+    def test_gap_down_bearish_or_is_gap_down_trend(self):
+        base = 24000.0
+        open_price = base * (1 - 0.006)
+        # Bearish OR structure, range ~1.1%
+        candles = [
+            _candle(open_price, open_price + 20, open_price - 80, open_price - 70),
+            _candle(open_price - 70, open_price - 40, open_price - 150, open_price - 140),
+            _candle(open_price - 140, open_price - 110, open_price - 250, open_price - 240),
+        ]
+        result = classify(candles, prev_close=base)
+
+        assert result.day_type == DayType.GAP_DOWN_TREND
+        assert result.allows(TradeDirection.SHORT) is True
+        assert result.allows(TradeDirection.LONG) is False
+
+    def test_gap_up_trend(self):
+        base = 24000.0
+        open_price = base * (1 + 0.005)  # +0.5% gap
+        # Bullish OR structure, range ~1.1%
+        candles = [
+            _candle(open_price, open_price + 80, open_price - 20, open_price + 70),
+            _candle(open_price + 70, open_price + 150, open_price + 40, open_price + 140),
+            _candle(open_price + 140, open_price + 250, open_price + 110, open_price + 240),
+        ]
+        result = classify(candles, prev_close=base)
+
+        assert result.day_type == DayType.GAP_UP_TREND
+        assert result.allows(TradeDirection.LONG) is True
+        assert result.allows(TradeDirection.SHORT) is False
+
+    def test_gap_below_threshold_not_classified_as_gap(self):
+        base = 24000.0
+        open_price = base * (1 + 0.001)  # +0.1% — below 0.3% threshold
+        candles = _or_candles_bullish(open_price)
+        result = classify(candles, prev_close=base)
+
+        assert result.is_gap_day is False
+
+
+class TestClassifyVReversalDays:
+    def test_v_reversal_bull_no_gap_bullish_or(self):
+        base = 24000.0
+        candles = _or_candles_bullish(base)  # open == prev_close
+        result = classify(candles, prev_close=base)
+
+        assert result.day_type == DayType.V_REVERSAL_BULL
+        assert result.allows(TradeDirection.LONG) is True
+        assert result.allows(TradeDirection.SHORT) is False
+        assert result.is_gap_day is False
+
+    def test_v_reversal_bear_no_gap_bearish_or(self):
+        base = 24000.0
+        candles = _or_candles_bearish(base)
+        result = classify(candles, prev_close=base)
+
+        assert result.day_type == DayType.V_REVERSAL_BEAR
+        assert result.allows(TradeDirection.SHORT) is True
+        assert result.allows(TradeDirection.LONG) is False
+
+
+class TestClassifyUnknown:
+    def test_fewer_than_3_candles_returns_unknown(self):
+        result = classify([_candle(24000, 24050, 23980, 24020)], prev_close=24000.0)
+        assert result.day_type == DayType.UNKNOWN
+        assert result.allows_any_direction is True
+        assert result.allows(TradeDirection.LONG) is True
+        assert result.allows(TradeDirection.SHORT) is True
+
+    def test_zero_prev_close_returns_unknown(self):
+        result = classify(_or_candles_bullish(), prev_close=0.0)
+        assert result.day_type == DayType.UNKNOWN
+
+    def test_empty_candles_returns_unknown(self):
+        result = classify([], prev_close=24000.0)
+        assert result.day_type == DayType.UNKNOWN
+
+
+# ── Tests: DayGate ───────────────────────────────────────────────────
+
+class TestDayGate:
+    def _make_broker(self, daily_closes=(24100.0, 24000.0), today_5m_base=24000.0):
+        broker = MagicMock()
+        daily = [
+            OHLCV(datetime(2026, 6, 16), 24000, 24200, 23950, c, 1_000_000)
+            for c in daily_closes
+        ]
+        broker.get_ohlcv.side_effect = lambda sym, tf, limit: (
+            daily if tf == "1d" else _or_candles_bullish(today_5m_base)
+        )
+        return broker
+
+    def test_gate_disabled_allows_any(self):
+        broker = MagicMock()
+        gate = DayGate(broker, enabled=False)
+        ok, _ = gate.allows(TradeDirection.LONG)
+        assert ok is True
+        ok, _ = gate.allows(TradeDirection.SHORT)
+        assert ok is True
+
+    def test_gate_blocks_on_range_day(self):
+        broker = MagicMock()
+        daily = [
+            OHLCV(datetime(2026, 6, 16), 24000, 24200, 23950, 24100.0, 1_000_000),
+            OHLCV(datetime(2026, 6, 17), 24000, 24200, 23950, 24000.0, 1_000_000),
+        ]
+        broker.get_ohlcv.side_effect = lambda sym, tf, limit: (
+            daily if tf == "1d" else _flat_candles(24000.0)
+        )
+        gate = DayGate(broker, enabled=True)
+        ok, reason = gate.allows(TradeDirection.LONG)
+        assert ok is False
+        assert "RANGE_INSIDE" in reason.upper() or "range" in reason.lower()
+
+    def test_gate_caches_result_second_call_no_extra_fetch(self):
+        broker = self._make_broker()
+        gate = DayGate(broker, enabled=True)
+
+        gate.allows(TradeDirection.LONG)
+        call_count_after_first = broker.get_ohlcv.call_count
+        gate.allows(TradeDirection.SHORT)
+        assert broker.get_ohlcv.call_count == call_count_after_first  # no extra fetch
+
+    def test_gate_fetch_error_allows_any(self):
+        broker = MagicMock()
+        broker.get_ohlcv.side_effect = Exception("Dhan 502")
+        gate = DayGate(broker, enabled=True)
+        ok, _ = gate.allows(TradeDirection.LONG)
+        assert ok is True  # fail open — don't block on broker error
+
+    def test_gate_insufficient_daily_candles_allows_any(self):
+        broker = MagicMock()
+        broker.get_ohlcv.side_effect = lambda sym, tf, limit: [] if tf == "1d" else _or_candles_bullish()
+        gate = DayGate(broker, enabled=True)
+        ok, _ = gate.allows(TradeDirection.LONG)
+        assert ok is True
+
+    def test_gate_reset_forces_reclassification(self):
+        broker = self._make_broker()
+        gate = DayGate(broker, enabled=True)
+
+        gate.allows(TradeDirection.LONG)
+        first_count = broker.get_ohlcv.call_count
+
+        gate.reset()
+        gate.allows(TradeDirection.SHORT)
+        assert broker.get_ohlcv.call_count > first_count  # re-fetched after reset

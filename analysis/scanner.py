@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 
+from analysis.day_classifier import DayGate
 from analysis.pipeline import AnalysisPipeline, PipelineResult
 from analysis.technical import (
     SetupType,
@@ -39,9 +40,12 @@ class WatchlistScanner:
         self.cfg = cfg
         self.broker = broker
         self.session = session
-        # Track the best setup seen today (within this scanner instance)
         self._best_score_today: float = 0.0
         self._best_symbol_today: str = ""
+        self._day_gate = DayGate(
+            broker=broker,
+            enabled=getattr(cfg, "day_gate_enabled", True),
+        )
 
     def can_scan(self) -> tuple[bool, str]:
         """Check if we're allowed to generate new trade plans."""
@@ -57,12 +61,20 @@ class WatchlistScanner:
         """Scan for setups. Returns at most 1 result (the best setup per cycle).
 
         Quality gates applied in order:
+        0. Day-type gate (Range/Inside Day → skip; directional lock applied)
         1. Session check (trade cap, profit target, loss guard)
-        2. Technical analysis (swing → momentum → candle → range)
-        3. Entry precision checks (pullback to EMA, volume surge)
-        4. Setup scoring (must exceed quality threshold)
-        5. Best-setup tracking (only trade if it's the best seen today)
+        2. Technical analysis (stacked sweep)
+        3. Direction check against day-type lock
+        4. Entry precision checks (pullback to EMA, volume surge)
+        5. Setup scoring (must exceed quality threshold)
+        6. Best-setup tracking (only trade if it's the best seen today)
         """
+        # ── Gate 0: Day-type gate ──
+        day_class = self._day_gate.classify_today()
+        if day_class.is_blocked:
+            log.info("Day gate blocked: %s — %s", day_class.day_type.value, day_class.reason)
+            return []
+
         # ── Gate 1: Session ──
         ok, reason = self.can_scan()
         if not ok:
@@ -85,7 +97,21 @@ class WatchlistScanner:
         plan = result.plan
         setup_type = plan.meta.get("setup_type", "swing")
 
-        # ── Gate 2: Entry precision checks ──
+        # ── Gate 2.5: Direction locked by day type ──
+        if not day_class.allows_any_direction and not day_class.allows(plan.direction):
+            log.info(
+                "Direction gate blocked: %s wants %s but day_type=%s only allows %s",
+                plan.symbol,
+                plan.direction.value,
+                day_class.day_type.value,
+                [d.value for d in (day_class.allowed_directions or [])],
+            )
+            return [PipelineResult(
+                symbol, result.macro, result.technical, result.fundamental_summary, None,
+                f"Day gate: {day_class.day_type.value} does not allow {plan.direction.value}",
+            )]
+
+        # ── Gate 3: Entry precision checks ──
         # Fetch LTF candles for pullback/volume checks
         ltf_candles = self.broker.get_ohlcv(symbol, "15m", 100)
         pullback_ok, pullback_reason = True, "pullback check disabled"
