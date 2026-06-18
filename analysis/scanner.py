@@ -23,6 +23,7 @@ from analysis.technical import (
 )
 from config import Config
 from models.trade_plan import TradePlan
+from notifications.service import NotificationService
 from providers.base import BrokerProvider
 from risk.session_tracker import SessionTracker
 from utils.symbols import normalize_symbol
@@ -37,17 +38,21 @@ class WatchlistScanner:
         cfg: Config,
         broker: BrokerProvider,
         session: SessionTracker | None = None,
+        notifier: NotificationService | None = None,
     ):
         self.pipeline = pipeline
         self.cfg = cfg
         self.broker = broker
         self.session = session
+        self.notifier = notifier
         self._best_score_today: float = 0.0
         self._best_symbol_today: str = ""
         self._day_gate = DayGate(
             broker=broker,
             enabled=getattr(cfg, "day_gate_enabled", True),
         )
+        self._day_classified_today: bool = False  # fire day_classified only once per day
+        self._day_classified_date: object = None   # tracks which date was classified
 
     def can_scan(self) -> tuple[bool, str]:
         """Check if we're allowed to generate new trade plans."""
@@ -73,6 +78,38 @@ class WatchlistScanner:
         """
         # ── Gate 0: Day-type gate ──
         day_class = self._day_gate.classify_today()
+
+        # Notify day classification once per calendar day
+        from datetime import date as _date
+        _today = _date.today()
+        if self._day_classified_date != _today and self.notifier:
+            _BREAKOUT = {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"}
+            strategy_name = "bb_orb_breakout" if day_class.day_type.value in _BREAKOUT else "stacked_sweep"
+            allowed_str = (
+                day_class.allowed_directions[0].value
+                if day_class.allowed_directions and len(day_class.allowed_directions) == 1
+                else ("none" if day_class.is_blocked else "any")
+            )
+            if day_class.is_blocked:
+                self.notifier.on_indicator_event("day_blocked", self.cfg.trading_symbol, {
+                    "reason": day_class.reason,
+                })
+            else:
+                self.notifier.on_indicator_event("day_classified", self.cfg.trading_symbol, {
+                    "day_type": day_class.day_type.value,
+                    "allowed_direction": allowed_str,
+                    "or_range_pct": round(day_class.or_range_pct * 100, 2),
+                    "gap_pct": round(day_class.gap_pct * 100, 2),
+                    "strategy": strategy_name,
+                })
+                self.notifier.on_indicator_event("strategy_routed", self.cfg.trading_symbol, {
+                    "strategy": strategy_name,
+                    "day_type": day_class.day_type.value,
+                    "direction": allowed_str,
+                })
+            self._day_classified_today = True
+            self._day_classified_date = _today
+
         if day_class.is_blocked:
             log.info("Day gate blocked: %s — %s", day_class.day_type.value, day_class.reason)
             return []
@@ -173,11 +210,17 @@ class WatchlistScanner:
                 reason_parts.append(pullback_reason)
             if not volume_ok:
                 reason_parts.append(volume_reason)
+            rejected_reason = "; ".join(reason_parts)
             result = PipelineResult(
                 symbol, result.macro, result.technical, result.fundamental_summary, None,
-                "; ".join(reason_parts),
+                rejected_reason,
             )
             log.info("Setup rejected: %s", result.rejected_reason)
+            if self.notifier:
+                self.notifier.on_indicator_event("signal_rejected", symbol, {
+                    "reason": rejected_reason,
+                    "quality_score": quality_score,
+                })
             return [result]
 
         # ── Gate 4: Best-setup tracking ──
@@ -201,6 +244,35 @@ class WatchlistScanner:
             pullback_reason,
             volume_reason,
         )
+
+        # Notify signal approval with setup-specific details
+        if self.notifier:
+            tech = result.technical
+            _setup_type = plan.meta.get("setup_type", "")
+            if _setup_type == SetupType.BB_ORB_BREAKOUT.value:
+                self.notifier.on_indicator_event("bb_orb_signal", symbol, {
+                    "direction": plan.direction.value,
+                    "entry": tech.entry if tech else 0.0,
+                    "stop_loss": tech.stop_loss if tech else 0.0,
+                    "tp1": tech.tp1 if tech else 0.0,
+                    "bb_reason": "bb_confirmed" if tech and "bb_confirmed" in (tech.confirmations or []) else "—",
+                    "orb_reason": "orb_confirmed" if tech and "orb_confirmed" in (tech.confirmations or []) else "—",
+                })
+            else:
+                self.notifier.on_indicator_event("sweep_signal", symbol, {
+                    "direction": plan.direction.value,
+                    "levels": [c for c in (tech.confirmations or []) if c not in ("daily_up", "daily_down")] if tech else [],
+                    "strength": tech.signal_strength if tech else 0.0,
+                    "entry": tech.entry if tech else 0.0,
+                    "stop_loss": tech.stop_loss if tech else 0.0,
+                    "tp1": tech.tp1 if tech else 0.0,
+                })
+            self.notifier.on_indicator_event("signal_fired", symbol, {
+                "strategy": _setup_type,
+                "direction": plan.direction.value,
+                "quality_score": quality_score,
+            })
+
         return results
 
     def pending_plans(self, results: list[PipelineResult]) -> list[TradePlan]:

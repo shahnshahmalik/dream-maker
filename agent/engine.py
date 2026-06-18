@@ -52,6 +52,7 @@ class TradingEngine:
         self._last_session_reason: str | None = None
 
         self.trade_logger = TradeLogger(cfg.trade_log_path, notifier=NotificationService(cfg))
+        self._notifier = self.trade_logger.notifier
         self.state_store = StateStore(cfg.state_dir, cfg.trade_log_path)
         self.broker = get_broker(cfg)
         self.llm = get_llm(cfg)
@@ -68,7 +69,7 @@ class TradingEngine:
             cfg.scheduled_events,
         )
         self.pipeline = AnalysisPipeline(self.broker, cfg, self.trade_logger, self.risk)
-        self.scanner = WatchlistScanner(self.pipeline, cfg, self.broker, self.session)
+        self.scanner = WatchlistScanner(self.pipeline, cfg, self.broker, self.session, self._notifier)
         self.planner = TradePlanner(self.llm, cfg, self.trade_logger)
         self.entry_watcher = EntryWatcher(self.broker, cfg)
         self.executor = TradeExecutor(

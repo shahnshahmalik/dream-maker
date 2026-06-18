@@ -119,6 +119,9 @@ class Config:
     telegram_chat_id: str
     telegram_notify_trades: bool
     telegram_notify_ai: bool
+    slack_webhook_url: str
+    slack_notify_trades: bool
+    slack_notify_indicators: bool
 
     trade_log_path: Path = field(default_factory=lambda: _ROOT / "trade_log.jsonl")
 
@@ -212,6 +215,9 @@ def load_config() -> Config:
         telegram_notify_ai=_bool(
             os.getenv("TELEGRAM_NOTIFY_AI"), default=y.get("telegram_notify_ai", True)
         ),
+        slack_webhook_url=os.getenv("SLACK_WEBHOOK_URL", y.get("slack_webhook_url", "")),
+        slack_notify_trades=_bool(os.getenv("SLACK_NOTIFY_TRADES"), default=y.get("slack_notify_trades", True)),
+        slack_notify_indicators=_bool(os.getenv("SLACK_NOTIFY_INDICATORS"), default=y.get("slack_notify_indicators", True)),
         trade_log_path=Path(os.getenv("TRADE_LOG_PATH", str(_ROOT / "trade_log.jsonl"))),
         balance_min_sell=float(os.getenv("BALANCE_MIN_SELL", y.get("balance_min_sell", 100_000))),
         balance_sell_buffer=float(os.getenv("BALANCE_SELL_BUFFER", y.get("balance_sell_buffer", 1.5))),
