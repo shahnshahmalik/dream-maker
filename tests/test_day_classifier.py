@@ -30,34 +30,37 @@ from models.trade_plan import TradeDirection
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
-def _candle(o: float, h: float, l: float, c: float, v: int = 100_000) -> OHLCV:
-    return OHLCV(timestamp=datetime(2026, 6, 17, 9, 15), open=o, high=h, low=l, close=c, volume=v)
+def _c(o: float, h: float, l: float, c: float, v: int = 100_000) -> OHLCV:
+    # Use today's date so DayGate's today-filter doesn't discard test candles
+    from datetime import date
+    today = date.today()
+    return OHLCV(timestamp=datetime(today.year, today.month, today.day, 9, 15), open=o, high=h, low=l, close=c, volume=v)
 
 
 def _or_candles_bullish(base: float = 24000.0) -> list[OHLCV]:
     """3 candles making HH/HL — bullish OR structure, range ~1.1% (>0.8% threshold)."""
     return [
-        _candle(base, base + 80, base - 20, base + 70),
-        _candle(base + 70, base + 150, base + 40, base + 140),
-        _candle(base + 140, base + 250, base + 110, base + 240),
+        _c(base, base + 80, base - 20, base + 70),
+        _c(base + 70, base + 150, base + 40, base + 140),
+        _c(base + 140, base + 250, base + 110, base + 240),
     ]
 
 
 def _or_candles_bearish(base: float = 24000.0) -> list[OHLCV]:
     """3 candles making LH/LL — bearish OR structure, range ~1.1% (>0.8% threshold)."""
     return [
-        _candle(base, base + 20, base - 80, base - 70),
-        _candle(base - 70, base - 40, base - 150, base - 140),
-        _candle(base - 140, base - 110, base - 250, base - 240),
+        _c(base, base + 20, base - 80, base - 70),
+        _c(base - 70, base - 40, base - 150, base - 140),
+        _c(base - 140, base - 110, base - 250, base - 240),
     ]
 
 
 def _flat_candles(base: float = 24000.0) -> list[OHLCV]:
     """3 nearly-flat candles — OR range < 0.3% → Range/Inside Day."""
     return [
-        _candle(base, base + 20, base - 10, base + 5),
-        _candle(base + 5, base + 25, base - 5, base + 10),
-        _candle(base + 10, base + 30, base, base + 15),
+        _c(base, base + 20, base - 10, base + 5),
+        _c(base + 5, base + 25, base - 5, base + 10),
+        _c(base + 10, base + 30, base, base + 15),
     ]
 
 
@@ -86,9 +89,9 @@ class TestClassifyGapDays:
         open_price = base * (1 - 0.006)  # -0.6% gap
         # Bullish OR structure, range ~1.1%
         candles = [
-            _candle(open_price, open_price + 80, open_price - 20, open_price + 70),
-            _candle(open_price + 70, open_price + 150, open_price + 40, open_price + 140),
-            _candle(open_price + 140, open_price + 250, open_price + 110, open_price + 240),
+            _c(open_price, open_price + 80, open_price - 20, open_price + 70),
+            _c(open_price + 70, open_price + 150, open_price + 40, open_price + 140),
+            _c(open_price + 140, open_price + 250, open_price + 110, open_price + 240),
         ]
         result = classify(candles, prev_close=base)
 
@@ -103,9 +106,9 @@ class TestClassifyGapDays:
         open_price = base * (1 - 0.006)
         # Bearish OR structure, range ~1.1%
         candles = [
-            _candle(open_price, open_price + 20, open_price - 80, open_price - 70),
-            _candle(open_price - 70, open_price - 40, open_price - 150, open_price - 140),
-            _candle(open_price - 140, open_price - 110, open_price - 250, open_price - 240),
+            _c(open_price, open_price + 20, open_price - 80, open_price - 70),
+            _c(open_price - 70, open_price - 40, open_price - 150, open_price - 140),
+            _c(open_price - 140, open_price - 110, open_price - 250, open_price - 240),
         ]
         result = classify(candles, prev_close=base)
 
@@ -118,9 +121,9 @@ class TestClassifyGapDays:
         open_price = base * (1 + 0.005)  # +0.5% gap
         # Bullish OR structure, range ~1.1%
         candles = [
-            _candle(open_price, open_price + 80, open_price - 20, open_price + 70),
-            _candle(open_price + 70, open_price + 150, open_price + 40, open_price + 140),
-            _candle(open_price + 140, open_price + 250, open_price + 110, open_price + 240),
+            _c(open_price, open_price + 80, open_price - 20, open_price + 70),
+            _c(open_price + 70, open_price + 150, open_price + 40, open_price + 140),
+            _c(open_price + 140, open_price + 250, open_price + 110, open_price + 240),
         ]
         result = classify(candles, prev_close=base)
 
@@ -160,7 +163,7 @@ class TestClassifyVReversalDays:
 
 class TestClassifyUnknown:
     def test_fewer_than_3_candles_returns_unknown(self):
-        result = classify([_candle(24000, 24050, 23980, 24020)], prev_close=24000.0)
+        result = classify([_c(24000, 24050, 23980, 24020)], prev_close=24000.0)
         assert result.day_type == DayType.UNKNOWN
         assert result.allows_any_direction is True
         assert result.allows(TradeDirection.LONG) is True

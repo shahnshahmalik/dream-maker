@@ -277,10 +277,22 @@ class DayGate:
 
             prev_close = daily_candles[-2].close  # yesterday's close
 
-            today_5m = self._broker.get_ohlcv("NIFTY50IDX", "5m", 20)
-            if not today_5m:
+            today_5m_raw = self._broker.get_ohlcv("NIFTY50IDX", "5m", 20)
+            if not today_5m_raw:
                 log.warning("Day gate: no 5m candles yet — gate open")
                 return _unknown_result("No intraday candles yet")
+
+            # Filter to today's candles only — the batch may include
+            # yesterday's closing bars at the front which would corrupt OR calc.
+            today_date = datetime.now().date()
+            today_5m = [
+                c for c in today_5m_raw
+                if hasattr(c.timestamp, "date") and c.timestamp.date() == today_date
+            ]
+
+            if not today_5m:
+                log.warning("Day gate: no candles for today yet — gate open")
+                return _unknown_result("No candles for today yet")
 
             return classify(today_5m, prev_close)
 
