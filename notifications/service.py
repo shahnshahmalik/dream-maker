@@ -11,7 +11,7 @@ import logging
 from typing import Any
 
 from config import Config
-from notifications.slack import SlackNotifier
+from notifications.signal_notifier import SignalNotifier
 from notifications.telegram import TelegramNotifier
 
 log = logging.getLogger("dream_maker.notify")
@@ -23,7 +23,7 @@ class NotificationService:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.telegram = TelegramNotifier(cfg.telegram_bot_token, cfg.telegram_chat_id)
-        self.slack = SlackNotifier(cfg.slack_webhook_url)
+        self.signal = SignalNotifier(cfg.signal_phone, cfg.signal_api_key)
 
         if self.telegram.enabled:
             log.info("Telegram notifications enabled for chat %s", cfg.telegram_chat_id)
@@ -31,19 +31,19 @@ class NotificationService:
             log.warning(
                 "TELEGRAM_ENABLED is true but TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing"
             )
-        if self.slack.enabled:
-            log.info("Slack notifications enabled (webhook configured)")
+        if self.signal.enabled:
+            log.info("Signal notifications enabled for %s", cfg.signal_phone)
 
     @property
     def enabled(self) -> bool:
-        return self.telegram.enabled or self.slack.enabled
+        return self.telegram.enabled or self.signal.enabled
 
-    def _broadcast(self, msg: str, *, telegram: bool = True, slack: bool = True) -> None:
+    def _broadcast(self, msg: str, *, telegram: bool = True, signal: bool = True) -> None:
         """Send msg to all enabled channels."""
         if telegram and self.cfg.telegram_enabled and self.telegram.enabled:
             self.telegram.send(msg)
-        if slack and self.slack.enabled:
-            self.slack.send(msg)
+        if signal and self.signal.enabled:
+            self.signal.send(msg)
 
     def on_audit_log(
         self,
@@ -56,16 +56,16 @@ class NotificationService:
         if action == "ORDER" and self.cfg.telegram_notify_trades:
             msg = self._format_order(symbol, provider, reason, details)
             if msg:
-                self._broadcast(msg, slack=self.cfg.slack_notify_trades)
+                self._broadcast(msg, signal=self.cfg.signal_notify_trades)
         elif action in {"CLOSE", "MODIFY"} and self.cfg.telegram_notify_trades:
             msg = self._format_trade_event(action, symbol, provider, reason, details)
             if msg:
-                self._broadcast(msg, slack=self.cfg.slack_notify_trades)
+                self._broadcast(msg, signal=self.cfg.signal_notify_trades)
         elif action == "AI_REVIEW" and self.cfg.telegram_notify_ai:
             msg = self._format_ai_review(symbol, provider, reason, details)
             if msg:
-                # AI reviews go to Telegram only
-                self._broadcast(msg, telegram=True, slack=False)
+                # AI reviews go to Telegram only (too noisy for Signal)
+                self._broadcast(msg, telegram=True, signal=False)
 
     def on_indicator_event(
         self,
@@ -91,8 +91,8 @@ class NotificationService:
         if not msg:
             return
 
-        # Indicator events go to both Telegram and Slack
-        self._broadcast(msg, telegram=True, slack=self.cfg.slack_notify_indicators)
+        # Indicator events go to both Telegram and Signal
+        self._broadcast(msg, telegram=True, signal=self.cfg.signal_notify_indicators)
 
     # ── Formatters ────────────────────────────────────────────────────────────
 
