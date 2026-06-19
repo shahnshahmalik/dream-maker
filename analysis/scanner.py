@@ -123,19 +123,22 @@ class WatchlistScanner:
         symbol = self.cfg.trading_symbol
         results: list[PipelineResult] = []
 
-        # Inject day context into cfg so pipeline can pass it to analyze_technical.
-        # Using transient attributes — no persistence, reset each scan cycle.
-        self.cfg._day_type = day_class.day_type.value
-        self.cfg._allowed_direction = (
+        # Inject day context onto the scanner (not cfg — cfg is frozen).
+        # Pipeline reads these via getattr(self.cfg, '_day_type', ...) fallback.
+        self._day_type = day_class.day_type.value
+        self._allowed_direction = (
             day_class.allowed_directions[0]
             if day_class.allowed_directions and len(day_class.allowed_directions) == 1
             else None
         )
+        # Make them visible to pipeline via cfg proxy attributes (object.__setattr__ bypasses frozen)
+        object.__setattr__(self.cfg, "_day_type", self._day_type)
+        object.__setattr__(self.cfg, "_allowed_direction", self._allowed_direction)
         log.info(
             "Day gate: %s → strategy=%s direction=%s",
             day_class.day_type.value,
-            "bb_orb_breakout" if self.cfg._day_type in {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"} else "stacked_sweep",
-            self.cfg._allowed_direction.value if self.cfg._allowed_direction else "any",
+            "bb_orb_breakout" if self._day_type in {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"} else self.cfg.active_strategy,
+            self._allowed_direction.value if self._allowed_direction else "any",
         )
 
         try:

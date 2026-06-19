@@ -84,7 +84,7 @@ class NotificationService:
           'sweep_signal'     — Stacked sweep triggered (V-Reversal day)
           'day_blocked'      — Range/Inside day, no trades today
         """
-        if not self.cfg.slack_notify_indicators and not self.cfg.telegram_notify_ai:
+        if not self.cfg.signal_notify_indicators and not self.cfg.telegram_notify_ai:
             return
 
         msg = self._format_indicator_event(event_type, symbol, details)

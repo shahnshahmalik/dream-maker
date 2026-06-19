@@ -18,8 +18,9 @@ class Trend(str, Enum):
 
 
 class SetupType(str, Enum):
-    STACKED_SWEEP = "stacked_sweep"    # V-Reversal days — liquidity sweep reversal
+    STACKED_SWEEP = "stacked_sweep"      # V-Reversal days — liquidity sweep reversal
     BB_ORB_BREAKOUT = "bb_orb_breakout"  # Trend/Gap days — BB + ORB momentum
+    VWAP_PULLBACK = "vwap_pullback"      # Pullback-to-VWAP in trend direction
 
 
 from analysis.liquidity_sweep import (
@@ -425,6 +426,218 @@ def _analyze_bb_orb_breakout(
     )
 
 
+def _compute_session_vwap(candles: list[OHLCV]) -> tuple[float, float, float]:
+    """Compute session VWAP and ±1σ bands from intraday candles.
+
+    Returns (vwap, upper_1sigma, lower_1sigma).
+    Uses typical price × volume weighting, standard deviation of typical prices
+    weighted by volume for the band width.
+    Returns (0, 0, 0) if candles are insufficient.
+    """
+    if len(candles) < 5:
+        return 0.0, 0.0, 0.0
+
+    tp_vol_sum = 0.0
+    vol_sum    = 0.0
+    tp_sq_sum  = 0.0
+
+    for c in candles:
+        tp = (c.high + c.low + c.close) / 3.0
+        v  = float(c.volume) or 1.0
+        tp_vol_sum += tp * v
+        vol_sum    += v
+        tp_sq_sum  += tp * tp * v
+
+    if vol_sum <= 0:
+        return 0.0, 0.0, 0.0
+
+    vwap     = tp_vol_sum / vol_sum
+    variance = max(0.0, (tp_sq_sum / vol_sum) - vwap * vwap)
+    sigma    = variance ** 0.5
+
+    return vwap, vwap + sigma, vwap - sigma
+
+
+def check_vwap_pullback(
+    ltf_candles: list[OHLCV],
+    direction: TradeDirection,
+    *,
+    proximity_pct: float = 0.003,
+) -> tuple[bool, str]:
+    """Check whether the last candle is pulling back to VWAP in trend direction.
+
+    Returns (ok, reason).
+
+    LONG: price must be above VWAP (trend confirmed) and current low
+          touched within proximity_pct of VWAP (pullback occurred).
+    SHORT: price must be below VWAP and current high touched VWAP.
+    """
+    if len(ltf_candles) < 10:
+        return False, "too_few_candles"
+
+    vwap, _, _ = _compute_session_vwap(ltf_candles)
+    if vwap <= 0:
+        return False, "vwap_zero"
+
+    last  = ltf_candles[-1]
+    close = last.close
+
+    if direction == TradeDirection.LONG:
+        if close <= vwap:
+            return False, f"close {close:.2f} below VWAP {vwap:.2f} — not in uptrend"
+        proximity = abs(last.low - vwap) / vwap
+        if proximity > proximity_pct:
+            return False, f"low {last.low:.2f} not close enough to VWAP {vwap:.2f} ({proximity:.3%})"
+        return True, f"LONG pullback to VWAP {vwap:.2f} confirmed"
+    else:
+        if close >= vwap:
+            return False, f"close {close:.2f} above VWAP {vwap:.2f} — not in downtrend"
+        proximity = abs(last.high - vwap) / vwap
+        if proximity > proximity_pct:
+            return False, f"high {last.high:.2f} not close enough to VWAP {vwap:.2f} ({proximity:.3%})"
+        return True, f"SHORT pullback to VWAP {vwap:.2f} confirmed"
+
+
+def _analyze_vwap_pullback(
+    htf_candles: list[OHLCV],
+    ltf_candles: list[OHLCV],
+    *,
+    min_rr: float,
+    max_sl_pct: float,
+    allowed_direction: TradeDirection | None = None,
+) -> TechnicalContext | None:
+    """VWAP Pullback — trend-following entry on pullback to session VWAP.
+
+    Works on any day type; best on trending days (V-Reversal Bull/Bear,
+    Trend Up/Down). Avoid in flat/range sessions (VWAP and price oscillate
+    through each other constantly — no edge).
+
+    Setup logic:
+      1. HTF trend (EMA9/21) defines direction.
+      2. VWAP computed from all today's LTF candles.
+      3. Price pulled back and tagged VWAP (last candle low/high within 0.3%).
+      4. Last candle closed back in trend direction (rejection wick).
+      5. Volume above 20-bar average (not a dead-zone touch).
+
+    SL: just beyond VWAP (opposite side), capped by max_sl_pct.
+    TP: entry + sl_dist × min_rr.
+    """
+    if len(ltf_candles) < 20 or len(htf_candles) < 20:
+        return None
+
+    htf_df = _ohlcv_to_df(htf_candles)
+    ltf_df = _ohlcv_to_df(ltf_candles)
+    htf_trend = detect_trend(htf_df)
+    ltf_trend = detect_trend(ltf_df)
+
+    # Determine trade direction from HTF trend; respect day gate lock if set
+    if allowed_direction is not None:
+        direction = allowed_direction
+    elif htf_trend == Trend.UPTREND:
+        direction = TradeDirection.LONG
+    elif htf_trend == Trend.DOWNTREND:
+        direction = TradeDirection.SHORT
+    else:
+        return None  # range HTF — no edge
+
+    # VWAP pullback check
+    vwap_ok, vwap_reason = check_vwap_pullback(ltf_candles, direction)
+    if not vwap_ok:
+        return None
+
+    vwap, vwap_upper, vwap_lower = _compute_session_vwap(ltf_candles)
+
+    # Volume confirmation
+    avg_vol = float(ltf_df["volume"].tail(20).mean()) or 1.0
+    last_vol = float(ltf_df["volume"].iloc[-1])
+    vol_ok = last_vol >= avg_vol * 1.1
+
+    # Rejection candle: must close back in trend direction
+    last = ltf_candles[-1]
+    if direction == TradeDirection.LONG and last.close <= last.open:
+        return None  # bearish candle at VWAP — rejection not confirmed
+    if direction == TradeDirection.SHORT and last.close >= last.open:
+        return None  # bullish candle at VWAP — rejection not confirmed
+
+    entry = last.close
+    max_sl_abs = entry * max(0.05, max_sl_pct) / 100.0
+
+    # SL: just beyond VWAP on the wrong side + small ATR buffer
+    h, l, pc = ltf_df["high"], ltf_df["low"], ltf_df["close"].shift(1)
+    tr  = pd.concat([(h - l), (h - pc).abs(), (l - pc).abs()], axis=1).max(axis=1)
+    atr = float(tr.ewm(span=14, adjust=False).mean().iloc[-1])
+
+    if direction == TradeDirection.LONG:
+        raw_sl   = vwap - atr * 0.3
+        stop_loss = max(raw_sl, entry - max_sl_abs)
+        if stop_loss >= entry:
+            return None
+        sl_dist = entry - stop_loss
+        tp1 = entry + sl_dist * min_rr
+        tp2 = entry + sl_dist * min_rr * 1.5
+    else:
+        raw_sl   = vwap + atr * 0.3
+        stop_loss = min(raw_sl, entry + max_sl_abs)
+        if stop_loss <= entry:
+            return None
+        sl_dist   = stop_loss - entry
+        tp1 = entry - sl_dist * min_rr
+        tp2 = entry - sl_dist * min_rr * 1.5
+
+    if sl_dist <= 0 or tp1 <= 0:
+        return None
+
+    rr = abs(tp1 - entry) / sl_dist
+
+    ema200    = _ema(htf_df["close"], min(200, len(htf_df)))
+    above_200 = float(htf_df["close"].iloc[-1]) > float(ema200.iloc[-1]) if len(ema200) else True
+    support   = float(htf_df["low"].tail(20).min())
+    resistance= float(htf_df["high"].tail(20).max())
+    ltf_range = float(ltf_df["high"].tail(14).max()) - float(ltf_df["low"].tail(14).min())
+    ltf_aligned = (
+        (direction == TradeDirection.LONG  and ltf_trend == Trend.UPTREND)
+        or (direction == TradeDirection.SHORT and ltf_trend == Trend.DOWNTREND)
+    )
+
+    # Signal strength: base 0.55, bonuses for ltf alignment and volume
+    strength = 0.55
+    strength += 0.10 if ltf_aligned else 0.0
+    strength += 0.05 if vol_ok else 0.0
+
+    confirmations = ["vwap_pullback", vwap_reason]
+    if vol_ok:
+        confirmations.append("volume_ok")
+    if ltf_aligned:
+        confirmations.append("ltf_aligned")
+
+    bias_source = (
+        f"VWAP pullback {direction.value} | "
+        f"VWAP={vwap:.2f} | "
+        f"entry={entry:.2f} SL={stop_loss:.2f} | "
+        f"{vwap_reason}"
+    )
+
+    return TechnicalContext(
+        htf_trend=htf_trend,
+        ltf_trend=ltf_trend,
+        above_200ema=above_200,
+        support=support,
+        resistance=resistance,
+        ltf_aligned=ltf_aligned,
+        entry=entry,
+        stop_loss=stop_loss,
+        tp1=tp1,
+        tp2=tp2,
+        rr_ratio=rr,
+        direction=direction,
+        bias_source=bias_source,
+        signal_strength=min(1.0, strength),
+        setup_type=SetupType.VWAP_PULLBACK,
+        confirmations=confirmations,
+        ltf_range=ltf_range,
+    )
+
+
 def analyze_technical(
     htf_candles: list[OHLCV],
     ltf_candles: list[OHLCV],
@@ -460,6 +673,14 @@ def analyze_technical(
         if allowed_direction is None:
             return None  # breakout requires a locked direction from day gate
         return _analyze_bb_orb_breakout(
+            htf_candles, ltf_candles,
+            min_rr=scalp_min_rr,
+            max_sl_pct=scalp_max_sl_pct,
+            allowed_direction=allowed_direction,
+        )
+
+    if active_strategy == "vwap_pullback":
+        return _analyze_vwap_pullback(
             htf_candles, ltf_candles,
             min_rr=scalp_min_rr,
             max_sl_pct=scalp_max_sl_pct,
