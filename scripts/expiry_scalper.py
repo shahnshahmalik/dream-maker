@@ -75,14 +75,19 @@ state = {
     "trades": 0, "active": False,
     "symbol": None, "sid": None,
     "entry": None, "tp": None, "sl": None, "qty": None,
-    "peak_ltp": None,       # highest LTP seen since entry — for trailing SL
+    "peak_ltp": None,            # highest LTP seen since entry — for trailing SL
+    "capital_profit_target": None,  # rupee PnL = 10% of balance at entry
+    "last_momentum_score": 0,    # cached bull/bear score — refreshed every 3rd monitor tick
+    "monitor_tick": 0,           # counts monitor ticks to throttle candle fetches
     "or_high": None, "or_low": None, "or_set": False,
     "last_dir": None, "daily_pnl": 0.0,
     "cooldown_until": 0,
 }
 
-TRAIL_ACTIVATE_PCT = 0.15   # start trailing once +15% gained
-TRAIL_LOCK_PCT     = 0.50   # SL trails at 50% of peak gain (locks half)
+TRAIL_ACTIVATE_PCT      = 0.15  # start trailing once +15% gained
+TRAIL_BREAKEVEN_BUFFER  = 8.0   # SL sits this many rupees above entry — just above breakeven
+HIGH_MOMENTUM_THRESHOLD = 3     # bull/bear score >= this → skip capital-target exit, let it run
+MOMENTUM_REFRESH_TICKS  = 3     # fetch candles every N monitor ticks to score momentum
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
@@ -358,7 +363,10 @@ def restore_state_from_broker() -> None:
                 "tp": round(entry * (1 + TP_PCT), 2),
                 "sl": round(entry * (1 - SL_PCT), 2),
                 "qty": qty, "trades": 1,
-                "peak_ltp": entry,  # conservative — will update on first LTP read
+                "peak_ltp": entry,
+                "capital_profit_target": round(get_balance() * 0.10, 2),
+                "last_momentum_score": 0,
+                "monitor_tick": 0,
             })
             log.info("RESTORED position %s qty=%d entry=%.2f TP=%.2f SL=%.2f",
                      sym, qty, entry, state["tp"], state["sl"])
@@ -412,25 +420,64 @@ def run():
                     time.sleep(LOOP_SECS)
                     continue
 
+                state["monitor_tick"] += 1
+
+                # Refresh momentum score every N ticks — throttled to avoid 429
+                if state["monitor_tick"] % MOMENTUM_REFRESH_TICKS == 0:
+                    candles_m = get_candles("1", LOOKBACK_1M)
+                    if len(candles_m) >= 12:
+                        htf_m = candles_m[-20:] if len(candles_m) >= 20 else candles_m
+                        bull_m, bear_m, _ = score_signal(candles_m, htf_m, ltp)
+                        state["last_momentum_score"] = max(bull_m, bear_m)
+                        log.info("MOMENTUM refresh score=%d (bull=%d bear=%d)",
+                                 state["last_momentum_score"], bull_m, bear_m)
+
                 # Update peak
                 if state["peak_ltp"] is None or ltp > state["peak_ltp"]:
                     state["peak_ltp"] = ltp
 
-                # Trailing SL: activates at +15%, locks 50% of peak gain
+                # Trailing SL: activates at +15%, then locks just above breakeven
                 peak_gain_pct = (state["peak_ltp"] - state["entry"]) / state["entry"]
                 if peak_gain_pct >= TRAIL_ACTIVATE_PCT:
-                    trail_sl = round(state["entry"] + (state["peak_ltp"] - state["entry"]) * TRAIL_LOCK_PCT, 2)
+                    trail_sl = round(state["entry"] + TRAIL_BREAKEVEN_BUFFER, 2)
                     if trail_sl > state["sl"]:
-                        log.info("TRAIL SL raised %.2f → %.2f (peak=%.2f +%.1f%%)",
-                                 state["sl"], trail_sl, state["peak_ltp"], peak_gain_pct * 100)
+                        log.info("TRAIL SL raised %.2f → %.2f (breakeven+₹%.0f, peak=%.2f +%.1f%%)",
+                                 state["sl"], trail_sl, TRAIL_BREAKEVEN_BUFFER,
+                                 state["peak_ltp"], peak_gain_pct * 100)
                         state["sl"] = trail_sl
 
                 pnl_pct = (ltp - state["entry"]) / state["entry"]
-                log.info("MONITOR %s LTP=%.2f PnL=%.1f%% TP=%.2f SL=%.2f peak=%.2f",
-                         state["symbol"], ltp, pnl_pct * 100, state["tp"], state["sl"], state["peak_ltp"])
+                pnl_rs  = (ltp - state["entry"]) * state["qty"]
+                log.info("MONITOR %s LTP=%.2f PnL=%.1f%% (₹%.0f) TP=%.2f SL=%.2f peak=%.2f",
+                         state["symbol"], ltp, pnl_pct * 100, pnl_rs, state["tp"], state["sl"], state["peak_ltp"])
 
                 hit_tp = ltp >= state["tp"]
                 hit_sl = ltp <= state["sl"]
+
+                # Capital-target exit: book profit at 10% of capital unless momentum is strong
+                hit_capital_target = (
+                    state["capital_profit_target"] is not None
+                    and pnl_rs >= state["capital_profit_target"]
+                )
+                high_momentum = state["last_momentum_score"] >= HIGH_MOMENTUM_THRESHOLD
+
+                if hit_capital_target and not high_momentum and not hit_tp:
+                    log.info("CAPITAL TARGET ₹%.0f reached (score=%d < %d) — booking profit @ ₹%.2f",
+                             state["capital_profit_target"], state["last_momentum_score"],
+                             HIGH_MOMENTUM_THRESHOLD, ltp)
+                    oid = place_order(state["sid"], state["qty"], "SELL")
+                    if oid:
+                        state["daily_pnl"] += pnl_rs
+                        state["active"]     = False
+                        state["cooldown_until"] = time.time() + 120
+                        log.info("CAPITAL EXIT entry=%.2f exit=%.2f PnL=₹%.0f | daily=₹%.0f",
+                                 state["entry"], ltp, pnl_rs, state["daily_pnl"])
+                    time.sleep(LOOP_SECS)
+                    continue
+
+                if hit_capital_target and high_momentum:
+                    log.info("CAPITAL TARGET reached but momentum=%d — letting it run",
+                             state["last_momentum_score"])
 
                 if hit_tp or hit_sl:
                     tag = "TP ✅" if hit_tp else "SL ❌"
@@ -543,6 +590,10 @@ def run():
                 "entry": ltp, "tp": round(ltp * (1 + TP_PCT), 2),
                 "sl": round(ltp * (1 - SL_PCT), 2),
                 "qty": lot, "last_dir": direction,
+                "peak_ltp": ltp,
+                "capital_profit_target": round(balance * 0.10, 2),
+                "last_momentum_score": max(bull, bear),
+                "monitor_tick": 0,
             })
             state["trades"] += 1
 
