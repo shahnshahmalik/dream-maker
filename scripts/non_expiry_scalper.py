@@ -1,26 +1,25 @@
 """
-Expiry Day Scalper v2 — 1-minute precision.
+Non-Expiry Day Scalper v1 — 5-minute precision.
 
 Timeframe choice rationale:
-  1-min: expiry day moves happen in 2-3 candles. 5-min candles are too slow
-         — by the time a 5m signal forms, half the premium move is gone.
-         1-min catches the setup at birth, not the obituary.
-  15-min for HTF trend context only (dual-timeframe approach).
+  5-min: on non-expiry days, NIFTY moves develop over multiple candles.
+         1m is too noisy without expiry-day gamma. 5m filters chop and
+         gives cleaner ORB breaks and EMA signals.
+  15-min for HTF trend context (true dual-timeframe, fetched separately).
 
-Strategy (expiry-specific):
-  - ORB: first 15-min (9:15–9:30) defines the range. Clean break = momentum trade.
-  - Momentum continuation: EMA9 > EMA21 on 1m + 3 consecutive HH/HL (bull)
-    or LH/LL (bear) on 1m confirms direction.
-  - VWAP: price bouncing off VWAP with a rejection wick + volume.
-  - Any 2 of 3 signals = entry.
+Strategy (non-expiry days):
+  - ORB: first 30-min (9:15–9:44) defines the range. Clean break = momentum trade.
+  - Momentum: EMA9/EMA21 cross + HH/HL or LH/LL structure.
+  - VWAP: rejection bounce with volume.
+  - Any 2 of these signals required (higher bar than expiry day).
 
-  Volume: must be > 1.5× 10-bar average on signal candle.
+  Volume: enforced at 1.5× 10-bar average — not just logged.
   No trades in dead zone 12:00–13:00 IST.
-  Theta kill at 14:15 IST (expiry day premium collapses faster).
+  Theta kill at 15:00 IST (non-expiry premium decays slower).
 
 Risk:
-  TP = +60%, SL = -20% (3:1 R:R)
-  Max 4 trades. ATM options only.
+  TP = +30%, SL = -15% (2:1 R:R)
+  Max 3 trades. ATM option on nearest upcoming (non-today) weekly expiry.
 """
 
 from __future__ import annotations
@@ -33,7 +32,9 @@ from dotenv import load_dotenv
 sys.path.insert(0, "/home/ubuntu/projects/dream-maker")
 load_dotenv("/home/ubuntu/projects/dream-maker/.env", override=True)
 
-# Read token directly from file to avoid env inheritance issues
+from utils.market_data import get_india_vix, vix_allows_entry, get_option_chain_context, max_pain_bias
+
+
 def _headers() -> dict:
     """Build headers fresh each call — reads directly from .env file."""
     token, cid = "", ""
@@ -48,22 +49,32 @@ def _headers() -> dict:
     except Exception:
         pass
     return {"access-token": token, "client-id": cid, "Content-Type": "application/json"}
-IST          = ZoneInfo("Asia/Kolkata")
-DB_PATH      = "/home/ubuntu/projects/dream-maker/data/scrip_master.db"
 
-TP_PCT       = 0.60
-SL_PCT       = 0.20
-MAX_TRADES   = 4
-THETA_KILL   = (14, 15)   # 14:15 IST — earlier on expiry day
+
+IST     = ZoneInfo("Asia/Kolkata")
+DB_PATH = "/home/ubuntu/projects/dream-maker/data/scrip_master.db"
+
+TP_PCT       = 0.30
+SL_PCT       = 0.15
+MAX_TRADES   = 3
+MAX_LOTS     = 1          # maximum lots per trade (1 lot = lot_size contracts)
+THETA_KILL   = (15, 0)    # 15:00 IST — non-expiry, can hold longer than expiry day
 DEAD_START   = (12, 0)
 DEAD_END     = (13, 0)
-LOOP_SECS    = 30         # 30s loop — Dhan allows ~1 req/sec, we make 3-4 per tick
-API_DELAY    = 2.0        # seconds between consecutive API calls
-VOL_MULT     = 1.05       # expiry day — 1m bars have lower vol than opening spike
-MIN_SIGNAL   = 1          # single strong signal is enough on expiry day
-LOOKBACK_1M  = 30         # how many 1-min bars to fetch
+ORB_END      = (9, 45)    # ORB window: 9:15–9:44 (6 x 5m candles), entries start 9:45
+LOOP_SECS    = 60         # aligned to 5m candle rhythm
+API_DELAY    = 2.0
+VOL_MULT     = 1.5        # enforced entry gate — not just logged
+MIN_SIGNAL   = 2          # need 2 confirming signals (vs 1 on expiry)
+LOOKBACK_5M  = 30         # 2.5 hours of 5m history
+LOOKBACK_15M = 20         # ~5 hours of 15m history for HTF context
 
-log = logging.getLogger("scalper")
+TRAIL_ACTIVATE_PCT      = 0.15   # start trailing once +15% gained
+TRAIL_BREAKEVEN_BUFFER  = 8.0    # SL locks this many rupees above entry
+HIGH_MOMENTUM_THRESHOLD = 3      # skip capital-target exit when score >= this
+MOMENTUM_REFRESH_TICKS  = 3      # refresh momentum every N monitor ticks
+
+log = logging.getLogger("non_expiry_scalper")
 log.setLevel(logging.INFO)
 
 class _ISTFormatter(logging.Formatter):
@@ -75,31 +86,29 @@ class _ISTFormatter(logging.Formatter):
         return ct.strftime(datefmt or "%H:%M:%S")
 
 fmt = _ISTFormatter("%(asctime)s | %(levelname)-7s | %(message)s", "%H:%M:%S")
-for h in [logging.FileHandler("/home/ubuntu/projects/dream-maker/logs/expiry_scalper.log"), logging.StreamHandler()]:
-    h.setFormatter(fmt)
-    if not any(type(x) == type(h) for x in log.handlers):
-        log.addHandler(h)
+for _h in [
+    logging.FileHandler("/home/ubuntu/projects/dream-maker/logs/non_expiry_scalper.log"),
+    logging.StreamHandler(),
+]:
+    _h.setFormatter(fmt)
+    if not any(type(x) == type(_h) for x in log.handlers):
+        log.addHandler(_h)
 
-state = {
+state: dict = {
     "trades": 0, "active": False,
     "symbol": None, "sid": None,
     "entry": None, "tp": None, "sl": None, "qty": None,
-    "peak_ltp": None,            # highest LTP seen since entry — for trailing SL
-    "capital_profit_target": None,  # rupee PnL = 10% of balance at entry
-    "last_momentum_score": 0,    # cached bull/bear score — refreshed every 3rd monitor tick
-    "monitor_tick": 0,           # counts monitor ticks to throttle candle fetches
+    "peak_ltp": None,
+    "capital_profit_target": None,
+    "last_momentum_score": 0,
+    "monitor_tick": 0,
     "or_high": None, "or_low": None, "or_set": False,
     "last_dir": None, "daily_pnl": 0.0,
     "cooldown_until": 0,
 }
 
-TRAIL_ACTIVATE_PCT      = 0.15  # start trailing once +15% gained
-TRAIL_BREAKEVEN_BUFFER  = 8.0   # SL sits this many rupees above entry — just above breakeven
-HIGH_MOMENTUM_THRESHOLD = 3     # bull/bear score >= this → skip capital-target exit, let it run
-MOMENTUM_REFRESH_TICKS  = 3     # fetch candles every N monitor ticks to score momentum
 
-
-# ── API ───────────────────────────────────────────────────────────────────────
+# ── API ────────────────────────────────────────────────────────────────────────
 
 def get_spot() -> float:
     try:
@@ -110,8 +119,8 @@ def get_spot() -> float:
         return 0.0
 
 
-def get_candles(interval: str = "1", limit: int = 60) -> list[dict]:
-    """Fetch intraday candles. interval: '1','5','15'."""
+def get_candles(interval: str = "5", limit: int = 30) -> list[dict]:
+    """Fetch intraday NIFTY candles. interval: '1', '5', '15'."""
     try:
         today = date.today().strftime("%Y-%m-%d")
         r = requests.post("https://api.dhan.co/v2/charts/intraday", headers=_headers(),
@@ -147,7 +156,7 @@ def get_option_ltp(sid: int, retries: int = 2) -> float:
             price = float(seg.get(str(sid), {}).get("last_price", 0.0))
             if price > 0:
                 return price
-            log.warning("LTP returned 0 for sid=%d (attempt %d) — raw: %s", sid, attempt + 1, str(seg)[:80])
+            log.warning("LTP=0 for sid=%d (attempt %d) — raw: %s", sid, attempt + 1, str(seg)[:80])
             time.sleep(3)
         except Exception as e:
             log.warning("LTP exception attempt %d: %s", attempt + 1, e)
@@ -164,15 +173,17 @@ def get_balance() -> float:
 
 
 def resolve_option(spot: float, opt_type: str) -> tuple[str, int, int] | None:
+    """Resolve ATM option on the nearest upcoming weekly expiry (strictly after today)."""
     try:
         atm = round(spot / 50) * 50
         today = date.today().strftime("%Y-%m-%d")
         conn = sqlite3.connect(DB_PATH)
         cur  = conn.cursor()
+        # Use > today (not >=) — on a non-expiry day we never want same-day expiry
         cur.execute("""
             SELECT trading_symbol, security_id, lot_size FROM scrip_master
             WHERE symbol_name='NIFTY' AND option_type=?
-              AND date(expiry_date) >= date(?)
+              AND date(expiry_date) > date(?)
               AND strike_price BETWEEN ? AND ?
             ORDER BY date(expiry_date) ASC, ABS(strike_price - ?) ASC LIMIT 1
         """, (opt_type, today, atm - 100, atm + 100, atm))
@@ -205,7 +216,7 @@ def place_order(sid: int, qty: int, side: str) -> str | None:
         return None
 
 
-# ── Indicators ────────────────────────────────────────────────────────────────
+# ── Indicators ─────────────────────────────────────────────────────────────────
 
 def ema(values: list[float], p: int) -> list[float]:
     if len(values) < p:
@@ -214,7 +225,6 @@ def ema(values: list[float], p: int) -> list[float]:
     e = [sum(values[:p]) / p]
     for v in values[p:]:
         e.append(v * k + e[-1] * (1 - k))
-    # pad front to match length
     return [e[0]] * (len(values) - len(e)) + e
 
 
@@ -224,7 +234,7 @@ def vwap(candles: list[dict]) -> float:
     return tv / v if v else 0.0
 
 
-# ── Time helpers ──────────────────────────────────────────────────────────────
+# ── Time helpers ───────────────────────────────────────────────────────────────
 
 def ist_now() -> datetime:
     return datetime.now(IST)
@@ -242,31 +252,46 @@ def past_theta_kill() -> bool:
 def past_market_close() -> bool:
     return hm() >= (15, 30)
 
+def orb_window_closed() -> bool:
+    """ORB window is 9:15–9:44. Entries only allowed from 9:45 onward."""
+    return hm() >= ORB_END
+
 def in_trade_window() -> bool:
-    return hm() >= (9, 30) and not past_theta_kill() and not in_dead_zone()
+    return orb_window_closed() and not past_theta_kill() and not in_dead_zone()
 
 
-# ── Signal engine ─────────────────────────────────────────────────────────────
+# ── Signal engine ──────────────────────────────────────────────────────────────
 
-def score_signal(candles_1m: list[dict], candles_15m: list[dict], spot: float) -> tuple[int, int, str]:
-    """Returns (bull_score, bear_score, reason_string)."""
-    if len(candles_1m) < 12:
-        return 0, 0, "too_few_1m"
+def score_signal(
+    candles_5m: list[dict],
+    candles_15m: list[dict],
+    spot: float,
+) -> tuple[int, int, str]:
+    """Returns (bull_score, bear_score, reason_string).
 
-    closes  = [c["close"]  for c in candles_1m]
-    highs   = [c["high"]   for c in candles_1m]
-    lows    = [c["low"]    for c in candles_1m]
-    opens   = [c["open"]   for c in candles_1m]
-    volumes = [c["volume"] for c in candles_1m]
+    Volume is an entry gate on non-expiry — signal scoring is skipped entirely
+    if the current bar does not meet the volume threshold.
+    """
+    if len(candles_5m) < 12:
+        return 0, 0, "too_few_5m"
 
-    # Volume is informational only on expiry day — intraday bars often dry up.
-    # Don't block entries on volume; just log it.
+    closes  = [c["close"]  for c in candles_5m]
+    highs   = [c["high"]   for c in candles_5m]
+    lows    = [c["low"]    for c in candles_5m]
+    opens   = [c["open"]   for c in candles_5m]
+    volumes = [c["volume"] for c in candles_5m]
+
     avg_vol = sum(volumes[-10:]) / min(10, len(volumes))
-    vol_note = f"vol={volumes[-1]:.0f}/avg={avg_vol:.0f}"
+    has_vol = volumes[-1] >= avg_vol * VOL_MULT
+
+    if not has_vol:
+        reason = f"low_vol={volumes[-1]:.0f}<{avg_vol * VOL_MULT:.0f}"
+        log.info("VOLUME GATE: %s — no entry", reason)
+        return 0, 0, reason
 
     e9  = ema(closes, 9)
     e21 = ema(closes, 21)
-    vw  = vwap(candles_1m)
+    vw  = vwap(candles_5m)
 
     last_c = closes[-1]
     last_o = opens[-1]
@@ -277,9 +302,9 @@ def score_signal(candles_1m: list[dict], candles_15m: list[dict], spot: float) -
     bear_body = last_c < last_o
 
     bull, bear = 0, 0
-    reasons = []
+    reasons: list[str] = []
 
-    # ── 1. EMA9/EMA21 cross or alignment on 1m ───────────────────────────────
+    # ── 1. EMA9/EMA21 cross or alignment on 5m ───────────────────────────────
     if e9[-1] > e21[-1] and e9[-2] <= e21[-2]:
         bull += 2
         reasons.append("EMA_cross_bull")
@@ -324,8 +349,10 @@ def score_signal(candles_1m: list[dict], candles_15m: list[dict], spot: float) -
     # ── 4. HH/HL or LH/LL momentum structure on last 5 bars ──────────────────
     last5h = highs[-5:]
     last5l = lows[-5:]
-    hh_hl = all(last5h[i] >= last5h[i-1] for i in range(1, 5)) and all(last5l[i] >= last5l[i-1] for i in range(1, 5))
-    lh_ll = all(last5h[i] <= last5h[i-1] for i in range(1, 5)) and all(last5l[i] <= last5l[i-1] for i in range(1, 5))
+    hh_hl = (all(last5h[i] >= last5h[i-1] for i in range(1, 5))
+              and all(last5l[i] >= last5l[i-1] for i in range(1, 5)))
+    lh_ll = (all(last5h[i] <= last5h[i-1] for i in range(1, 5))
+              and all(last5l[i] <= last5l[i-1] for i in range(1, 5)))
 
     if hh_hl:
         bull += 1
@@ -334,7 +361,7 @@ def score_signal(candles_1m: list[dict], candles_15m: list[dict], spot: float) -
         bear += 1
         reasons.append("LH_LL_struct")
 
-    # ── 5. HTF 15m bias (context only — half weight) ─────────────────────────
+    # ── 5. HTF 15m bias (true 15m candles, fetched separately) ───────────────
     if len(candles_15m) >= 5:
         htf_closes = [c["close"] for c in candles_15m]
         htf_e9  = ema(htf_closes, min(9, len(htf_closes)))
@@ -346,7 +373,9 @@ def score_signal(candles_1m: list[dict], candles_15m: list[dict], spot: float) -
             bear += 1
             reasons.append("HTF_bear")
 
-    log.info("SCORE → bull=%d bear=%d | %s | %s", bull, bear, " | ".join(reasons) or "no_signals", vol_note)
+    log.info("SCORE → bull=%d bear=%d | %s | vol=%.0f/thr=%.0f✓",
+             bull, bear, " | ".join(reasons) or "no_signals",
+             volumes[-1], avg_vol * VOL_MULT)
     return bull, bear, " | ".join(reasons)
 
 
@@ -363,8 +392,8 @@ def restore_state_from_broker() -> None:
             sym = p.get("tradingSymbol", "")
             if "NIFTY" not in sym:
                 continue
-            sid  = int(p["securityId"])
-            qty  = int(p["netQty"])
+            sid   = int(p["securityId"])
+            qty   = int(p["netQty"])
             entry = float(p["buyAvg"])
             state.update({
                 "active": True, "symbol": sym, "sid": sid,
@@ -379,27 +408,26 @@ def restore_state_from_broker() -> None:
             })
             log.info("RESTORED position %s qty=%d entry=%.2f TP=%.2f SL=%.2f",
                      sym, qty, entry, state["tp"], state["sl"])
-            return  # only restore one — if multiple open, there's a bigger problem
+            return  # only restore one — multiple open positions signal a bigger problem
     except Exception as e:
         log.warning("Could not restore state from broker: %s", e)
 
 
-# ── Main loop ─────────────────────────────────────────────────────────────────
+# ── Main loop ──────────────────────────────────────────────────────────────────
 
-def run():
+def run() -> None:
     # NIFTY 50 weekly expiry is Tuesday (weekday=1) since Sep 1, 2025.
-    # If today is not Tuesday, exit immediately — expiry scalper only runs on expiry day.
+    # Non-expiry scalper must NOT run on Tuesdays — that's expiry scalper's day.
     today = ist_now()
-    if today.weekday() != 1:
-        day_name = today.strftime("%A")
-        log.info("Not expiry day (today=%s). Expiry scalper runs on Tuesdays only. Exiting.", day_name)
+    if today.weekday() == 1:
+        log.info("Today is Tuesday (expiry day). Non-expiry scalper does not run on expiry day. Exiting.")
         return
 
     log.info("=" * 60)
-    log.info("EXPIRY SCALPER v2 — 1m entries | TP=+%.0f%% SL=-%.0f%% | MaxTrades=%d",
+    log.info("NON-EXPIRY SCALPER v1 — 5m entries | TP=+%.0f%% SL=-%.0f%% | MaxTrades=%d",
              TP_PCT * 100, SL_PCT * 100, MAX_TRADES)
-    log.info("Theta kill %02d:%02d | Dead zone %02d:%02d–%02d:%02d",
-             *THETA_KILL, *DEAD_START, *DEAD_END)
+    log.info("Theta kill %02d:%02d | Dead zone %02d:%02d–%02d:%02d | ORB ends %02d:%02d",
+             *THETA_KILL, *DEAD_START, *DEAD_END, *ORB_END)
     log.info("=" * 60)
     restore_state_from_broker()
 
@@ -411,7 +439,7 @@ def run():
                 log.info("Market closed. Done.")
                 break
 
-            # ── Theta kill ────────────────────────────────────────────────────
+            # ── Theta kill — force exit any open position ──────────────────────
             if past_theta_kill():
                 if state["active"]:
                     ltp = get_option_ltp(state["sid"])
@@ -429,7 +457,7 @@ def run():
                      now.strftime("%H:%M:%S"), state["trades"], MAX_TRADES,
                      state["active"], state["daily_pnl"])
 
-            # ── Monitor active trade (skip candle/spot fetch to avoid 429) ──────
+            # ── Monitor active trade ───────────────────────────────────────────
             if state["active"]:
                 ltp = get_option_ltp(state["sid"])
                 if ltp <= 0:
@@ -439,21 +467,18 @@ def run():
 
                 state["monitor_tick"] += 1
 
-                # Refresh momentum score every N ticks — throttled to avoid 429
                 if state["monitor_tick"] % MOMENTUM_REFRESH_TICKS == 0:
-                    candles_m = get_candles("1", LOOKBACK_1M)
+                    candles_m   = get_candles("5",  LOOKBACK_5M)
+                    candles_htf = get_candles("15", LOOKBACK_15M)
                     if len(candles_m) >= 12:
-                        htf_m = candles_m[-20:] if len(candles_m) >= 20 else candles_m
-                        bull_m, bear_m, _ = score_signal(candles_m, htf_m, ltp)
+                        bull_m, bear_m, _ = score_signal(candles_m, candles_htf, ltp)
                         state["last_momentum_score"] = max(bull_m, bear_m)
                         log.info("MOMENTUM refresh score=%d (bull=%d bear=%d)",
                                  state["last_momentum_score"], bull_m, bear_m)
 
-                # Update peak
                 if state["peak_ltp"] is None or ltp > state["peak_ltp"]:
                     state["peak_ltp"] = ltp
 
-                # Trailing SL: activates at +15%, then locks just above breakeven
                 peak_gain_pct = (state["peak_ltp"] - state["entry"]) / state["entry"]
                 if peak_gain_pct >= TRAIL_ACTIVATE_PCT:
                     trail_sl = round(state["entry"] + TRAIL_BREAKEVEN_BUFFER, 2)
@@ -466,12 +491,12 @@ def run():
                 pnl_pct = (ltp - state["entry"]) / state["entry"]
                 pnl_rs  = (ltp - state["entry"]) * state["qty"]
                 log.info("MONITOR %s LTP=%.2f PnL=%.1f%% (₹%.0f) TP=%.2f SL=%.2f peak=%.2f",
-                         state["symbol"], ltp, pnl_pct * 100, pnl_rs, state["tp"], state["sl"], state["peak_ltp"])
+                         state["symbol"], ltp, pnl_pct * 100, pnl_rs,
+                         state["tp"], state["sl"], state["peak_ltp"])
 
                 hit_tp = ltp >= state["tp"]
                 hit_sl = ltp <= state["sl"]
 
-                # Capital-target exit: book profit at 10% of capital unless momentum is strong
                 hit_capital_target = (
                     state["capital_profit_target"] is not None
                     and pnl_rs >= state["capital_profit_target"]
@@ -479,14 +504,14 @@ def run():
                 high_momentum = state["last_momentum_score"] >= HIGH_MOMENTUM_THRESHOLD
 
                 if hit_capital_target and not high_momentum and not hit_tp:
-                    log.info("CAPITAL TARGET ₹%.0f reached (score=%d < %d) — booking profit @ ₹%.2f",
+                    log.info("CAPITAL TARGET ₹%.0f reached (score=%d < %d) — booking @ ₹%.2f",
                              state["capital_profit_target"], state["last_momentum_score"],
                              HIGH_MOMENTUM_THRESHOLD, ltp)
                     oid = place_order(state["sid"], state["qty"], "SELL")
                     if oid:
                         state["daily_pnl"] += pnl_rs
                         state["active"]     = False
-                        state["cooldown_until"] = time.time() + 120
+                        state["cooldown_until"] = time.time() + 180
                         log.info("CAPITAL EXIT entry=%.2f exit=%.2f PnL=₹%.0f | daily=₹%.0f",
                                  state["entry"], ltp, pnl_rs, state["daily_pnl"])
                     time.sleep(LOOP_SECS)
@@ -504,46 +529,46 @@ def run():
                         pnl = (ltp - state["entry"]) * state["qty"]
                         state["daily_pnl"] += pnl
                         state["active"]     = False
-                        state["cooldown_until"] = time.time() + 120
+                        state["cooldown_until"] = time.time() + 180
                         log.info("CLOSED entry=%.2f exit=%.2f PnL=₹%.0f | daily=₹%.0f",
                                  state["entry"], ltp, pnl, state["daily_pnl"])
                 time.sleep(LOOP_SECS)
                 continue
 
-            # ── Fetch data (only needed when looking for new entries) ─────────
-            candles_1m  = get_candles("1",  LOOKBACK_1M)
+            # ── Fetch data (only when hunting for new entries) ─────────────────
+            candles_5m  = get_candles("5",  LOOKBACK_5M)
+            time.sleep(API_DELAY)
+            candles_15m = get_candles("15", LOOKBACK_15M)
             time.sleep(API_DELAY)
             spot = get_spot()
-            candles_15m = candles_1m[-20:] if len(candles_1m) >= 20 else candles_1m
 
-            if spot <= 0 or len(candles_1m) < 5:
-                log.warning("Bad data spot=%.2f 1m=%d", spot, len(candles_1m))
+            if spot <= 0 or len(candles_5m) < 5:
+                log.warning("Bad data spot=%.2f 5m=%d", spot, len(candles_5m))
                 time.sleep(LOOP_SECS)
                 continue
 
-            # ── Build OR from 9:15–9:30 1m candles ───────────────────────────
+            # ── Build ORB from 9:15–9:44 using 5m candles ────────────────────
             if not state["or_set"]:
-                or_c = [c for c in candles_1m if c["hh"] == 9 and 15 <= c["mm"] <= 29]
+                or_c = [c for c in candles_5m if c["hh"] == 9 and 15 <= c["mm"] <= 44]
                 if len(or_c) >= 5:
                     state["or_high"] = max(c["high"] for c in or_c)
                     state["or_low"]  = min(c["low"]  for c in or_c)
                     state["or_set"]  = True
-                    log.info("OR locked: H=%.2f L=%.2f range=%.2f pts",
+                    log.info("ORB locked: H=%.2f L=%.2f range=%.2f pts",
                              state["or_high"], state["or_low"],
                              state["or_high"] - state["or_low"])
 
-            last = candles_1m[-1]
-            log.info("Spot=%.2f | 1m %s C=%.2f | 1m_bars=%d",
-                     spot, last["time"], last["close"], len(candles_1m))
+            last = candles_5m[-1]
+            log.info("Spot=%.2f | 5m %s C=%.2f | 5m_bars=%d 15m_bars=%d",
+                     spot, last["time"], last["close"], len(candles_5m), len(candles_15m))
 
-            # ── Dead zone / window checks ─────────────────────────────────────
             if in_dead_zone():
                 log.info("DEAD ZONE — no trades")
                 time.sleep(60)
                 continue
 
             if not in_trade_window():
-                log.info("Outside window")
+                log.info("Outside window (ORB building or pre-market)")
                 time.sleep(LOOP_SECS)
                 continue
 
@@ -557,8 +582,8 @@ def run():
                 time.sleep(LOOP_SECS)
                 continue
 
-            # ── Signal ───────────────────────────────────────────────────────
-            bull, bear, reason = score_signal(candles_1m, candles_15m, spot)
+            # ── Signal ────────────────────────────────────────────────────────
+            bull, bear, reason = score_signal(candles_5m, candles_15m, spot)
 
             direction = None
             if bull >= MIN_SIGNAL and bull > bear:
@@ -572,7 +597,51 @@ def run():
 
             log.info("SIGNAL %s — %s", direction, reason)
 
-            # ── Resolve + check ───────────────────────────────────────────────
+            # ── India VIX gate ────────────────────────────────────────────────
+            vix = get_india_vix()
+            vix_ok, vix_reason = vix_allows_entry(vix)
+            if not vix_ok:
+                log.warning("VIX GATE: %s — skipping entry", vix_reason)
+                time.sleep(LOOP_SECS)
+                continue
+            log.info("VIX: %s", vix_reason)
+
+            # ── Max Pain + OI wall context ────────────────────────────────────
+            # Fetch option chain for current expiry — used for directional bias
+            # and to confirm we're not entering into a wall
+            try:
+                expiry_str = date.today().strftime("%d-%b-%Y")
+                oc = get_option_chain_context("NIFTY", spot, expiry_str)
+                if oc is not None:
+                    mp_bias = max_pain_bias(spot, oc.max_pain)
+                    log.info(
+                        "OI: max_pain=%.0f CE_wall=%.0f PE_wall=%.0f PCR=%.2f bias=%s mp_bias=%s",
+                        oc.max_pain, oc.ce_wall, oc.pe_wall, oc.pcr, oc.bias, mp_bias,
+                    )
+                    # Block CE entry if price is at or above CE wall (resistance)
+                    if direction == "CE" and spot >= oc.ce_wall - 25:
+                        log.warning(
+                            "OI WALL GATE: spot=%.0f near CE_wall=%.0f — skipping CE entry",
+                            spot, oc.ce_wall,
+                        )
+                        time.sleep(LOOP_SECS)
+                        continue
+                    # Block PE entry if price is at or below PE wall (support)
+                    if direction == "PE" and spot <= oc.pe_wall + 25:
+                        log.warning(
+                            "OI WALL GATE: spot=%.0f near PE_wall=%.0f — skipping PE entry",
+                            spot, oc.pe_wall,
+                        )
+                        time.sleep(LOOP_SECS)
+                        continue
+                    # Max pain alignment boost: log when direction aligns with max pain pull
+                    if (direction == "CE" and mp_bias == "bullish") or \
+                       (direction == "PE" and mp_bias == "bearish"):
+                        log.info("MAX PAIN CONFLUENCE: direction=%s mp_bias=%s — high conviction", direction, mp_bias)
+            except Exception as exc:
+                log.warning("OI context fetch failed (non-fatal): %s", exc)
+
+            # ── Resolve option + affordability check ──────────────────────────
             result = resolve_option(spot, direction)
             if result is None:
                 log.warning("Cannot resolve ATM %s", direction)
@@ -580,6 +649,7 @@ def run():
                 continue
 
             sym, sid, lot = result
+            lot = int(result[2]) * MAX_LOTS  # enforce MAX_LOTS cap (1 lot)
             time.sleep(API_DELAY)
             ltp = get_option_ltp(sid)
             if ltp <= 0:
@@ -588,7 +658,7 @@ def run():
                 continue
 
             balance = get_balance()
-            cost    = ltp * lot * 1.2
+            cost    = ltp * lot * 1.2   # 20% buffer for slippage
             if cost > balance:
                 log.warning("Cannot afford %s ₹%.0f > bal ₹%.0f", sym, cost, balance)
                 time.sleep(LOOP_SECS)

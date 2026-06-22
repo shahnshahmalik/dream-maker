@@ -1,0 +1,1088 @@
+03:35:35 | INFO    | ============================================================
+03:35:35 | INFO    | ============================================================
+03:35:35 | INFO    | NON-EXPIRY SCALPER v1 — 5m entries | TP=+30% SL=-15% | MaxTrades=3
+03:35:35 | INFO    | NON-EXPIRY SCALPER v1 — 5m entries | TP=+30% SL=-15% | MaxTrades=3
+03:35:35 | INFO    | Theta kill 15:00 | Dead zone 12:00–13:00 | ORB ends 09:45
+03:35:35 | INFO    | Theta kill 15:00 | Dead zone 12:00–13:00 | ORB ends 09:45
+03:35:35 | INFO    | ============================================================
+03:35:35 | INFO    | ============================================================
+03:35:35 | INFO    | ── 09:05:35 | trade=0/3 | active=False | pnl=₹0 ──
+03:35:35 | INFO    | ── 09:05:35 | trade=0/3 | active=False | pnl=₹0 ──
+03:35:40 | WARNING | Bad data spot=0.00 5m=0
+03:35:40 | WARNING | Bad data spot=0.00 5m=0
+03:36:40 | INFO    | ── 09:06:40 | trade=0/3 | active=False | pnl=₹0 ──
+03:36:40 | INFO    | ── 09:06:40 | trade=0/3 | active=False | pnl=₹0 ──
+03:36:44 | WARNING | Bad data spot=0.00 5m=0
+03:36:44 | WARNING | Bad data spot=0.00 5m=0
+03:37:44 | INFO    | ── 09:07:44 | trade=0/3 | active=False | pnl=₹0 ──
+03:37:44 | INFO    | ── 09:07:44 | trade=0/3 | active=False | pnl=₹0 ──
+03:37:48 | WARNING | Bad data spot=0.00 5m=0
+03:37:48 | WARNING | Bad data spot=0.00 5m=0
+03:38:48 | INFO    | ── 09:08:48 | trade=0/3 | active=False | pnl=₹0 ──
+03:38:48 | INFO    | ── 09:08:48 | trade=0/3 | active=False | pnl=₹0 ──
+03:38:53 | WARNING | Bad data spot=0.00 5m=0
+03:38:53 | WARNING | Bad data spot=0.00 5m=0
+03:39:53 | INFO    | ── 09:09:53 | trade=0/3 | active=False | pnl=₹0 ──
+03:39:53 | INFO    | ── 09:09:53 | trade=0/3 | active=False | pnl=₹0 ──
+03:39:57 | WARNING | Bad data spot=0.00 5m=0
+03:39:57 | WARNING | Bad data spot=0.00 5m=0
+03:40:57 | INFO    | ── 09:10:57 | trade=0/3 | active=False | pnl=₹0 ──
+03:40:57 | INFO    | ── 09:10:57 | trade=0/3 | active=False | pnl=₹0 ──
+03:41:02 | WARNING | Bad data spot=0.00 5m=0
+03:41:02 | WARNING | Bad data spot=0.00 5m=0
+03:42:02 | INFO    | ── 09:12:02 | trade=0/3 | active=False | pnl=₹0 ──
+03:42:02 | INFO    | ── 09:12:02 | trade=0/3 | active=False | pnl=₹0 ──
+03:42:06 | WARNING | Bad data spot=0.00 5m=0
+03:42:06 | WARNING | Bad data spot=0.00 5m=0
+03:43:06 | INFO    | ── 09:13:06 | trade=0/3 | active=False | pnl=₹0 ──
+03:43:06 | INFO    | ── 09:13:06 | trade=0/3 | active=False | pnl=₹0 ──
+03:43:10 | WARNING | Bad data spot=0.00 5m=0
+03:43:10 | WARNING | Bad data spot=0.00 5m=0
+03:44:10 | INFO    | ── 09:14:10 | trade=0/3 | active=False | pnl=₹0 ──
+03:44:10 | INFO    | ── 09:14:10 | trade=0/3 | active=False | pnl=₹0 ──
+03:44:15 | WARNING | Bad data spot=0.00 5m=0
+03:44:15 | WARNING | Bad data spot=0.00 5m=0
+03:45:15 | INFO    | ── 09:15:15 | trade=0/3 | active=False | pnl=₹0 ──
+03:45:15 | INFO    | ── 09:15:15 | trade=0/3 | active=False | pnl=₹0 ──
+03:45:19 | WARNING | Bad data spot=0.00 5m=0
+03:45:19 | WARNING | Bad data spot=0.00 5m=0
+03:46:19 | INFO    | ── 09:16:19 | trade=0/3 | active=False | pnl=₹0 ──
+03:46:19 | INFO    | ── 09:16:19 | trade=0/3 | active=False | pnl=₹0 ──
+03:46:24 | WARNING | Bad data spot=0.00 5m=0
+03:46:24 | WARNING | Bad data spot=0.00 5m=0
+03:47:24 | INFO    | ── 09:17:24 | trade=0/3 | active=False | pnl=₹0 ──
+03:47:24 | INFO    | ── 09:17:24 | trade=0/3 | active=False | pnl=₹0 ──
+03:47:28 | WARNING | Bad data spot=0.00 5m=0
+03:47:28 | WARNING | Bad data spot=0.00 5m=0
+03:48:28 | INFO    | ── 09:18:28 | trade=0/3 | active=False | pnl=₹0 ──
+03:48:28 | INFO    | ── 09:18:28 | trade=0/3 | active=False | pnl=₹0 ──
+03:48:32 | WARNING | Bad data spot=0.00 5m=0
+03:48:32 | WARNING | Bad data spot=0.00 5m=0
+03:49:32 | INFO    | ── 09:19:32 | trade=0/3 | active=False | pnl=₹0 ──
+03:49:32 | INFO    | ── 09:19:32 | trade=0/3 | active=False | pnl=₹0 ──
+03:49:37 | WARNING | Bad data spot=0.00 5m=0
+03:49:37 | WARNING | Bad data spot=0.00 5m=0
+03:50:37 | INFO    | ── 09:20:37 | trade=0/3 | active=False | pnl=₹0 ──
+03:50:37 | INFO    | ── 09:20:37 | trade=0/3 | active=False | pnl=₹0 ──
+03:50:41 | WARNING | Bad data spot=0.00 5m=0
+03:50:41 | WARNING | Bad data spot=0.00 5m=0
+03:51:41 | INFO    | ── 09:21:41 | trade=0/3 | active=False | pnl=₹0 ──
+03:51:41 | INFO    | ── 09:21:41 | trade=0/3 | active=False | pnl=₹0 ──
+03:51:46 | WARNING | Bad data spot=0.00 5m=0
+03:51:46 | WARNING | Bad data spot=0.00 5m=0
+03:52:46 | INFO    | ── 09:22:46 | trade=0/3 | active=False | pnl=₹0 ──
+03:52:46 | INFO    | ── 09:22:46 | trade=0/3 | active=False | pnl=₹0 ──
+03:52:50 | WARNING | Bad data spot=0.00 5m=0
+03:52:50 | WARNING | Bad data spot=0.00 5m=0
+03:53:50 | INFO    | ── 09:23:50 | trade=0/3 | active=False | pnl=₹0 ──
+03:53:50 | INFO    | ── 09:23:50 | trade=0/3 | active=False | pnl=₹0 ──
+03:53:54 | WARNING | Bad data spot=0.00 5m=0
+03:53:54 | WARNING | Bad data spot=0.00 5m=0
+03:54:54 | INFO    | ── 09:24:54 | trade=0/3 | active=False | pnl=₹0 ──
+03:54:54 | INFO    | ── 09:24:54 | trade=0/3 | active=False | pnl=₹0 ──
+03:54:59 | WARNING | Bad data spot=0.00 5m=0
+03:54:59 | WARNING | Bad data spot=0.00 5m=0
+03:55:59 | INFO    | ── 09:25:59 | trade=0/3 | active=False | pnl=₹0 ──
+03:55:59 | INFO    | ── 09:25:59 | trade=0/3 | active=False | pnl=₹0 ──
+03:56:03 | WARNING | Bad data spot=0.00 5m=0
+03:56:03 | WARNING | Bad data spot=0.00 5m=0
+03:57:03 | INFO    | ── 09:27:03 | trade=0/3 | active=False | pnl=₹0 ──
+03:57:03 | INFO    | ── 09:27:03 | trade=0/3 | active=False | pnl=₹0 ──
+03:57:08 | WARNING | Bad data spot=0.00 5m=0
+03:57:08 | WARNING | Bad data spot=0.00 5m=0
+03:58:08 | INFO    | ── 09:28:08 | trade=0/3 | active=False | pnl=₹0 ──
+03:58:08 | INFO    | ── 09:28:08 | trade=0/3 | active=False | pnl=₹0 ──
+03:58:12 | WARNING | Bad data spot=0.00 5m=0
+03:58:12 | WARNING | Bad data spot=0.00 5m=0
+03:59:12 | INFO    | ── 09:29:12 | trade=0/3 | active=False | pnl=₹0 ──
+03:59:12 | INFO    | ── 09:29:12 | trade=0/3 | active=False | pnl=₹0 ──
+03:59:16 | WARNING | Bad data spot=0.00 5m=0
+03:59:16 | WARNING | Bad data spot=0.00 5m=0
+04:00:16 | INFO    | ── 09:30:16 | trade=0/3 | active=False | pnl=₹0 ──
+04:00:16 | INFO    | ── 09:30:16 | trade=0/3 | active=False | pnl=₹0 ──
+04:00:21 | WARNING | Bad data spot=0.00 5m=0
+04:00:21 | WARNING | Bad data spot=0.00 5m=0
+04:01:21 | INFO    | ── 09:31:21 | trade=0/3 | active=False | pnl=₹0 ──
+04:01:21 | INFO    | ── 09:31:21 | trade=0/3 | active=False | pnl=₹0 ──
+04:01:25 | WARNING | Bad data spot=0.00 5m=0
+04:01:25 | WARNING | Bad data spot=0.00 5m=0
+04:02:25 | INFO    | ── 09:32:25 | trade=0/3 | active=False | pnl=₹0 ──
+04:02:25 | INFO    | ── 09:32:25 | trade=0/3 | active=False | pnl=₹0 ──
+04:02:30 | WARNING | Bad data spot=24131.60 5m=4
+04:02:30 | WARNING | Bad data spot=24131.60 5m=4
+04:03:30 | INFO    | ── 09:33:30 | trade=0/3 | active=False | pnl=₹0 ──
+04:03:30 | INFO    | ── 09:33:30 | trade=0/3 | active=False | pnl=₹0 ──
+04:03:34 | WARNING | Bad data spot=24131.10 5m=4
+04:03:34 | WARNING | Bad data spot=24131.10 5m=4
+04:04:34 | INFO    | ── 09:34:34 | trade=0/3 | active=False | pnl=₹0 ──
+04:04:34 | INFO    | ── 09:34:34 | trade=0/3 | active=False | pnl=₹0 ──
+04:04:39 | WARNING | Bad data spot=24132.80 5m=4
+04:04:39 | WARNING | Bad data spot=24132.80 5m=4
+04:05:39 | INFO    | ── 09:35:39 | trade=0/3 | active=False | pnl=₹0 ──
+04:05:39 | INFO    | ── 09:35:39 | trade=0/3 | active=False | pnl=₹0 ──
+04:05:43 | INFO    | ORB locked: H=24142.50 L=24073.15 range=69.35 pts
+04:05:43 | INFO    | ORB locked: H=24142.50 L=24073.15 range=69.35 pts
+04:05:43 | INFO    | Spot=24127.95 | 5m 09:35 C=24128.80 | 5m_bars=5 15m_bars=2
+04:05:43 | INFO    | Spot=24127.95 | 5m 09:35 C=24128.80 | 5m_bars=5 15m_bars=2
+04:05:43 | INFO    | Outside window (ORB building or pre-market)
+04:05:43 | INFO    | Outside window (ORB building or pre-market)
+04:06:43 | INFO    | ── 09:36:43 | trade=0/3 | active=False | pnl=₹0 ──
+04:06:43 | INFO    | ── 09:36:43 | trade=0/3 | active=False | pnl=₹0 ──
+04:06:48 | INFO    | Spot=24124.95 | 5m 09:35 C=24122.40 | 5m_bars=5 15m_bars=2
+04:06:48 | INFO    | Spot=24124.95 | 5m 09:35 C=24122.40 | 5m_bars=5 15m_bars=2
+04:06:48 | INFO    | Outside window (ORB building or pre-market)
+04:06:48 | INFO    | Outside window (ORB building or pre-market)
+04:07:48 | INFO    | ── 09:37:48 | trade=0/3 | active=False | pnl=₹0 ──
+04:07:48 | INFO    | ── 09:37:48 | trade=0/3 | active=False | pnl=₹0 ──
+04:07:52 | INFO    | Spot=24117.00 | 5m 09:35 C=24116.45 | 5m_bars=5 15m_bars=2
+04:07:52 | INFO    | Spot=24117.00 | 5m 09:35 C=24116.45 | 5m_bars=5 15m_bars=2
+04:07:52 | INFO    | Outside window (ORB building or pre-market)
+04:07:52 | INFO    | Outside window (ORB building or pre-market)
+04:08:52 | INFO    | ── 09:38:52 | trade=0/3 | active=False | pnl=₹0 ──
+04:08:52 | INFO    | ── 09:38:52 | trade=0/3 | active=False | pnl=₹0 ──
+04:08:56 | INFO    | Spot=24115.50 | 5m 09:35 C=24113.40 | 5m_bars=5 15m_bars=2
+04:08:56 | INFO    | Spot=24115.50 | 5m 09:35 C=24113.40 | 5m_bars=5 15m_bars=2
+04:08:56 | INFO    | Outside window (ORB building or pre-market)
+04:08:56 | INFO    | Outside window (ORB building or pre-market)
+04:09:56 | INFO    | ── 09:39:56 | trade=0/3 | active=False | pnl=₹0 ──
+04:09:56 | INFO    | ── 09:39:56 | trade=0/3 | active=False | pnl=₹0 ──
+04:10:01 | INFO    | Spot=24125.15 | 5m 09:35 C=24123.55 | 5m_bars=5 15m_bars=2
+04:10:01 | INFO    | Spot=24125.15 | 5m 09:35 C=24123.55 | 5m_bars=5 15m_bars=2
+04:10:01 | INFO    | Outside window (ORB building or pre-market)
+04:10:01 | INFO    | Outside window (ORB building or pre-market)
+04:11:01 | INFO    | ── 09:41:01 | trade=0/3 | active=False | pnl=₹0 ──
+04:11:01 | INFO    | ── 09:41:01 | trade=0/3 | active=False | pnl=₹0 ──
+04:11:05 | INFO    | Spot=24125.40 | 5m 09:40 C=24125.90 | 5m_bars=6 15m_bars=2
+04:11:05 | INFO    | Spot=24125.40 | 5m 09:40 C=24125.90 | 5m_bars=6 15m_bars=2
+04:11:05 | INFO    | Outside window (ORB building or pre-market)
+04:11:05 | INFO    | Outside window (ORB building or pre-market)
+04:12:05 | INFO    | ── 09:42:05 | trade=0/3 | active=False | pnl=₹0 ──
+04:12:05 | INFO    | ── 09:42:05 | trade=0/3 | active=False | pnl=₹0 ──
+04:12:10 | INFO    | Spot=24123.35 | 5m 09:40 C=24124.80 | 5m_bars=6 15m_bars=2
+04:12:10 | INFO    | Spot=24123.35 | 5m 09:40 C=24124.80 | 5m_bars=6 15m_bars=2
+04:12:10 | INFO    | Outside window (ORB building or pre-market)
+04:12:10 | INFO    | Outside window (ORB building or pre-market)
+04:13:10 | INFO    | ── 09:43:10 | trade=0/3 | active=False | pnl=₹0 ──
+04:13:10 | INFO    | ── 09:43:10 | trade=0/3 | active=False | pnl=₹0 ──
+04:13:14 | INFO    | Spot=24114.45 | 5m 09:40 C=24115.25 | 5m_bars=6 15m_bars=2
+04:13:14 | INFO    | Spot=24114.45 | 5m 09:40 C=24115.25 | 5m_bars=6 15m_bars=2
+04:13:14 | INFO    | Outside window (ORB building or pre-market)
+04:13:14 | INFO    | Outside window (ORB building or pre-market)
+04:14:14 | INFO    | ── 09:44:14 | trade=0/3 | active=False | pnl=₹0 ──
+04:14:14 | INFO    | ── 09:44:14 | trade=0/3 | active=False | pnl=₹0 ──
+04:14:19 | INFO    | Spot=24117.85 | 5m 09:40 C=24115.65 | 5m_bars=6 15m_bars=2
+04:14:19 | INFO    | Spot=24117.85 | 5m 09:40 C=24115.65 | 5m_bars=6 15m_bars=2
+04:14:19 | INFO    | Outside window (ORB building or pre-market)
+04:14:19 | INFO    | Outside window (ORB building or pre-market)
+04:15:19 | INFO    | ── 09:45:19 | trade=0/3 | active=False | pnl=₹0 ──
+04:15:19 | INFO    | ── 09:45:19 | trade=0/3 | active=False | pnl=₹0 ──
+04:15:23 | INFO    | Spot=24106.60 | 5m 09:45 C=24109.30 | 5m_bars=7 15m_bars=3
+04:15:23 | INFO    | Spot=24106.60 | 5m 09:45 C=24109.30 | 5m_bars=7 15m_bars=3
+04:16:23 | INFO    | ── 09:46:23 | trade=0/3 | active=False | pnl=₹0 ──
+04:16:23 | INFO    | ── 09:46:23 | trade=0/3 | active=False | pnl=₹0 ──
+04:16:27 | INFO    | Spot=24110.10 | 5m 09:45 C=24110.10 | 5m_bars=7 15m_bars=3
+04:16:27 | INFO    | Spot=24110.10 | 5m 09:45 C=24110.10 | 5m_bars=7 15m_bars=3
+04:17:27 | INFO    | ── 09:47:27 | trade=0/3 | active=False | pnl=₹0 ──
+04:17:27 | INFO    | ── 09:47:27 | trade=0/3 | active=False | pnl=₹0 ──
+04:17:32 | INFO    | Spot=24110.50 | 5m 09:45 C=24110.85 | 5m_bars=7 15m_bars=3
+04:17:32 | INFO    | Spot=24110.50 | 5m 09:45 C=24110.85 | 5m_bars=7 15m_bars=3
+04:18:32 | INFO    | ── 09:48:32 | trade=0/3 | active=False | pnl=₹0 ──
+04:18:32 | INFO    | ── 09:48:32 | trade=0/3 | active=False | pnl=₹0 ──
+04:18:36 | INFO    | Spot=24108.95 | 5m 09:45 C=24108.50 | 5m_bars=7 15m_bars=3
+04:18:36 | INFO    | Spot=24108.95 | 5m 09:45 C=24108.50 | 5m_bars=7 15m_bars=3
+04:19:36 | INFO    | ── 09:49:36 | trade=0/3 | active=False | pnl=₹0 ──
+04:19:36 | INFO    | ── 09:49:36 | trade=0/3 | active=False | pnl=₹0 ──
+04:19:41 | INFO    | Spot=24109.00 | 5m 09:45 C=24109.40 | 5m_bars=7 15m_bars=3
+04:19:41 | INFO    | Spot=24109.00 | 5m 09:45 C=24109.40 | 5m_bars=7 15m_bars=3
+04:20:41 | INFO    | ── 09:50:41 | trade=0/3 | active=False | pnl=₹0 ──
+04:20:41 | INFO    | ── 09:50:41 | trade=0/3 | active=False | pnl=₹0 ──
+04:20:45 | INFO    | Spot=24120.20 | 5m 09:50 C=24117.45 | 5m_bars=8 15m_bars=3
+04:20:45 | INFO    | Spot=24120.20 | 5m 09:50 C=24117.45 | 5m_bars=8 15m_bars=3
+04:21:45 | INFO    | ── 09:51:45 | trade=0/3 | active=False | pnl=₹0 ──
+04:21:45 | INFO    | ── 09:51:45 | trade=0/3 | active=False | pnl=₹0 ──
+04:21:49 | INFO    | Spot=24121.25 | 5m 09:50 C=24120.35 | 5m_bars=8 15m_bars=3
+04:21:49 | INFO    | Spot=24121.25 | 5m 09:50 C=24120.35 | 5m_bars=8 15m_bars=3
+04:22:49 | INFO    | ── 09:52:49 | trade=0/3 | active=False | pnl=₹0 ──
+04:22:49 | INFO    | ── 09:52:49 | trade=0/3 | active=False | pnl=₹0 ──
+04:22:54 | INFO    | Spot=24122.70 | 5m 09:50 C=24121.50 | 5m_bars=8 15m_bars=3
+04:22:54 | INFO    | Spot=24122.70 | 5m 09:50 C=24121.50 | 5m_bars=8 15m_bars=3
+04:23:54 | INFO    | ── 09:53:54 | trade=0/3 | active=False | pnl=₹0 ──
+04:23:54 | INFO    | ── 09:53:54 | trade=0/3 | active=False | pnl=₹0 ──
+04:23:58 | INFO    | Spot=24127.25 | 5m 09:50 C=24126.95 | 5m_bars=8 15m_bars=3
+04:23:58 | INFO    | Spot=24127.25 | 5m 09:50 C=24126.95 | 5m_bars=8 15m_bars=3
+04:24:58 | INFO    | ── 09:54:58 | trade=0/3 | active=False | pnl=₹0 ──
+04:24:58 | INFO    | ── 09:54:58 | trade=0/3 | active=False | pnl=₹0 ──
+04:25:03 | INFO    | Spot=24129.10 | 5m 09:50 C=24128.05 | 5m_bars=8 15m_bars=3
+04:25:03 | INFO    | Spot=24129.10 | 5m 09:50 C=24128.05 | 5m_bars=8 15m_bars=3
+04:26:03 | INFO    | ── 09:56:03 | trade=0/3 | active=False | pnl=₹0 ──
+04:26:03 | INFO    | ── 09:56:03 | trade=0/3 | active=False | pnl=₹0 ──
+04:26:07 | INFO    | Spot=24129.65 | 5m 09:55 C=24128.95 | 5m_bars=9 15m_bars=3
+04:26:07 | INFO    | Spot=24129.65 | 5m 09:55 C=24128.95 | 5m_bars=9 15m_bars=3
+04:27:07 | INFO    | ── 09:57:07 | trade=0/3 | active=False | pnl=₹0 ──
+04:27:07 | INFO    | ── 09:57:07 | trade=0/3 | active=False | pnl=₹0 ──
+04:27:12 | INFO    | Spot=24137.40 | 5m 09:55 C=24136.50 | 5m_bars=9 15m_bars=3
+04:27:12 | INFO    | Spot=24137.40 | 5m 09:55 C=24136.50 | 5m_bars=9 15m_bars=3
+04:28:12 | INFO    | ── 09:58:12 | trade=0/3 | active=False | pnl=₹0 ──
+04:28:12 | INFO    | ── 09:58:12 | trade=0/3 | active=False | pnl=₹0 ──
+04:28:16 | INFO    | Spot=24136.15 | 5m 09:55 C=24133.95 | 5m_bars=9 15m_bars=3
+04:28:16 | INFO    | Spot=24136.15 | 5m 09:55 C=24133.95 | 5m_bars=9 15m_bars=3
+04:29:16 | INFO    | ── 09:59:16 | trade=0/3 | active=False | pnl=₹0 ──
+04:29:16 | INFO    | ── 09:59:16 | trade=0/3 | active=False | pnl=₹0 ──
+04:29:20 | INFO    | Spot=24137.15 | 5m 09:55 C=24137.30 | 5m_bars=9 15m_bars=3
+04:29:20 | INFO    | Spot=24137.15 | 5m 09:55 C=24137.30 | 5m_bars=9 15m_bars=3
+04:30:20 | INFO    | ── 10:00:20 | trade=0/3 | active=False | pnl=₹0 ──
+04:30:20 | INFO    | ── 10:00:20 | trade=0/3 | active=False | pnl=₹0 ──
+04:30:25 | INFO    | Spot=24145.00 | 5m 10:00 C=24143.80 | 5m_bars=10 15m_bars=4
+04:30:25 | INFO    | Spot=24145.00 | 5m 10:00 C=24143.80 | 5m_bars=10 15m_bars=4
+04:31:25 | INFO    | ── 10:01:25 | trade=0/3 | active=False | pnl=₹0 ──
+04:31:25 | INFO    | ── 10:01:25 | trade=0/3 | active=False | pnl=₹0 ──
+04:31:29 | INFO    | Spot=24144.45 | 5m 10:00 C=24144.35 | 5m_bars=10 15m_bars=4
+04:31:29 | INFO    | Spot=24144.45 | 5m 10:00 C=24144.35 | 5m_bars=10 15m_bars=4
+04:32:29 | INFO    | ── 10:02:29 | trade=0/3 | active=False | pnl=₹0 ──
+04:32:29 | INFO    | ── 10:02:29 | trade=0/3 | active=False | pnl=₹0 ──
+04:32:34 | INFO    | Spot=24146.60 | 5m 10:00 C=24144.35 | 5m_bars=10 15m_bars=4
+04:32:34 | INFO    | Spot=24146.60 | 5m 10:00 C=24144.35 | 5m_bars=10 15m_bars=4
+04:33:34 | INFO    | ── 10:03:34 | trade=0/3 | active=False | pnl=₹0 ──
+04:33:34 | INFO    | ── 10:03:34 | trade=0/3 | active=False | pnl=₹0 ──
+04:33:38 | INFO    | Spot=24139.25 | 5m 10:00 C=24139.80 | 5m_bars=10 15m_bars=4
+04:33:38 | INFO    | Spot=24139.25 | 5m 10:00 C=24139.80 | 5m_bars=10 15m_bars=4
+04:34:38 | INFO    | ── 10:04:38 | trade=0/3 | active=False | pnl=₹0 ──
+04:34:38 | INFO    | ── 10:04:38 | trade=0/3 | active=False | pnl=₹0 ──
+04:34:43 | INFO    | Spot=24136.25 | 5m 10:00 C=24136.20 | 5m_bars=10 15m_bars=4
+04:34:43 | INFO    | Spot=24136.25 | 5m 10:00 C=24136.20 | 5m_bars=10 15m_bars=4
+04:35:43 | INFO    | ── 10:05:43 | trade=0/3 | active=False | pnl=₹0 ──
+04:35:43 | INFO    | ── 10:05:43 | trade=0/3 | active=False | pnl=₹0 ──
+04:35:47 | INFO    | Spot=24131.90 | 5m 10:05 C=24130.90 | 5m_bars=11 15m_bars=4
+04:35:47 | INFO    | Spot=24131.90 | 5m 10:05 C=24130.90 | 5m_bars=11 15m_bars=4
+04:36:47 | INFO    | ── 10:06:47 | trade=0/3 | active=False | pnl=₹0 ──
+04:36:47 | INFO    | ── 10:06:47 | trade=0/3 | active=False | pnl=₹0 ──
+04:36:51 | INFO    | Spot=24137.50 | 5m 10:05 C=24137.45 | 5m_bars=11 15m_bars=4
+04:36:51 | INFO    | Spot=24137.50 | 5m 10:05 C=24137.45 | 5m_bars=11 15m_bars=4
+04:37:51 | INFO    | ── 10:07:51 | trade=0/3 | active=False | pnl=₹0 ──
+04:37:51 | INFO    | ── 10:07:51 | trade=0/3 | active=False | pnl=₹0 ──
+04:37:56 | INFO    | Spot=24143.65 | 5m 10:05 C=24142.70 | 5m_bars=11 15m_bars=4
+04:37:56 | INFO    | Spot=24143.65 | 5m 10:05 C=24142.70 | 5m_bars=11 15m_bars=4
+04:38:56 | INFO    | ── 10:08:56 | trade=0/3 | active=False | pnl=₹0 ──
+04:38:56 | INFO    | ── 10:08:56 | trade=0/3 | active=False | pnl=₹0 ──
+04:39:00 | INFO    | Spot=24145.50 | 5m 10:05 C=24146.90 | 5m_bars=11 15m_bars=4
+04:39:00 | INFO    | Spot=24145.50 | 5m 10:05 C=24146.90 | 5m_bars=11 15m_bars=4
+04:40:00 | INFO    | ── 10:10:00 | trade=0/3 | active=False | pnl=₹0 ──
+04:40:00 | INFO    | ── 10:10:00 | trade=0/3 | active=False | pnl=₹0 ──
+04:40:05 | INFO    | Spot=24152.85 | 5m 10:10 C=24154.85 | 5m_bars=12 15m_bars=4
+04:40:05 | INFO    | Spot=24152.85 | 5m 10:10 C=24154.85 | 5m_bars=12 15m_bars=4
+04:40:05 | INFO    | VOLUME GATE: low_vol=0<5521587 — no entry
+04:40:05 | INFO    | VOLUME GATE: low_vol=0<5521587 — no entry
+04:41:05 | INFO    | ── 10:11:05 | trade=0/3 | active=False | pnl=₹0 ──
+04:41:05 | INFO    | ── 10:11:05 | trade=0/3 | active=False | pnl=₹0 ──
+04:41:09 | INFO    | Spot=24153.35 | 5m 10:10 C=24155.20 | 5m_bars=12 15m_bars=4
+04:41:09 | INFO    | Spot=24153.35 | 5m 10:10 C=24155.20 | 5m_bars=12 15m_bars=4
+04:41:09 | INFO    | VOLUME GATE: low_vol=909820<5658065 — no entry
+04:41:09 | INFO    | VOLUME GATE: low_vol=909820<5658065 — no entry
+04:42:09 | INFO    | ── 10:12:09 | trade=0/3 | active=False | pnl=₹0 ──
+04:42:09 | INFO    | ── 10:12:09 | trade=0/3 | active=False | pnl=₹0 ──
+04:42:13 | INFO    | Spot=24146.05 | 5m 10:10 C=24145.95 | 5m_bars=12 15m_bars=4
+04:42:13 | INFO    | Spot=24146.05 | 5m 10:10 C=24145.95 | 5m_bars=12 15m_bars=4
+04:42:13 | INFO    | VOLUME GATE: low_vol=1629786<5766060 — no entry
+04:42:13 | INFO    | VOLUME GATE: low_vol=1629786<5766060 — no entry
+04:43:13 | INFO    | ── 10:13:13 | trade=0/3 | active=False | pnl=₹0 ──
+04:43:13 | INFO    | ── 10:13:13 | trade=0/3 | active=False | pnl=₹0 ──
+04:43:18 | INFO    | Spot=24148.10 | 5m 10:10 C=24146.30 | 5m_bars=12 15m_bars=4
+04:43:18 | INFO    | Spot=24148.10 | 5m 10:10 C=24146.30 | 5m_bars=12 15m_bars=4
+04:43:18 | INFO    | VOLUME GATE: low_vol=2197035<5851147 — no entry
+04:43:18 | INFO    | VOLUME GATE: low_vol=2197035<5851147 — no entry
+04:44:18 | INFO    | ── 10:14:18 | trade=0/3 | active=False | pnl=₹0 ──
+04:44:18 | INFO    | ── 10:14:18 | trade=0/3 | active=False | pnl=₹0 ──
+04:44:22 | INFO    | Spot=24149.15 | 5m 10:10 C=24148.70 | 5m_bars=12 15m_bars=4
+04:44:22 | INFO    | Spot=24149.15 | 5m 10:10 C=24148.70 | 5m_bars=12 15m_bars=4
+04:44:22 | INFO    | VOLUME GATE: low_vol=2785289<5939385 — no entry
+04:44:22 | INFO    | VOLUME GATE: low_vol=2785289<5939385 — no entry
+04:45:22 | INFO    | ── 10:15:22 | trade=0/3 | active=False | pnl=₹0 ──
+04:45:22 | INFO    | ── 10:15:22 | trade=0/3 | active=False | pnl=₹0 ──
+04:45:27 | INFO    | Spot=24151.50 | 5m 10:15 C=24151.10 | 5m_bars=13 15m_bars=5
+04:45:27 | INFO    | Spot=24151.50 | 5m 10:15 C=24151.10 | 5m_bars=13 15m_bars=5
+04:45:27 | INFO    | VOLUME GATE: low_vol=266074<5153017 — no entry
+04:45:27 | INFO    | VOLUME GATE: low_vol=266074<5153017 — no entry
+04:46:27 | INFO    | ── 10:16:27 | trade=0/3 | active=False | pnl=₹0 ──
+04:46:27 | INFO    | ── 10:16:27 | trade=0/3 | active=False | pnl=₹0 ──
+04:46:31 | INFO    | Spot=24151.15 | 5m 10:15 C=24151.45 | 5m_bars=13 15m_bars=5
+04:46:31 | INFO    | Spot=24151.15 | 5m 10:15 C=24151.45 | 5m_bars=13 15m_bars=5
+04:46:31 | INFO    | VOLUME GATE: low_vol=1079093<5274969 — no entry
+04:46:31 | INFO    | VOLUME GATE: low_vol=1079093<5274969 — no entry
+04:47:31 | INFO    | ── 10:17:31 | trade=0/3 | active=False | pnl=₹0 ──
+04:47:31 | INFO    | ── 10:17:31 | trade=0/3 | active=False | pnl=₹0 ──
+04:47:36 | INFO    | Spot=24151.95 | 5m 10:15 C=24151.70 | 5m_bars=13 15m_bars=5
+04:47:36 | INFO    | Spot=24151.95 | 5m 10:15 C=24151.70 | 5m_bars=13 15m_bars=5
+04:47:36 | INFO    | VOLUME GATE: low_vol=1746589<5375094 — no entry
+04:47:36 | INFO    | VOLUME GATE: low_vol=1746589<5375094 — no entry
+04:48:36 | INFO    | ── 10:18:36 | trade=0/3 | active=False | pnl=₹0 ──
+04:48:36 | INFO    | ── 10:18:36 | trade=0/3 | active=False | pnl=₹0 ──
+04:48:40 | INFO    | Spot=24149.15 | 5m 10:15 C=24151.00 | 5m_bars=13 15m_bars=5
+04:48:40 | INFO    | Spot=24149.15 | 5m 10:15 C=24151.00 | 5m_bars=13 15m_bars=5
+04:48:40 | INFO    | VOLUME GATE: low_vol=2440917<5479243 — no entry
+04:48:40 | INFO    | VOLUME GATE: low_vol=2440917<5479243 — no entry
+04:51:15 | INFO    | ============================================================
+04:51:15 | INFO    | NON-EXPIRY SCALPER v1 — 5m entries | TP=+30% SL=-15% | MaxTrades=3
+04:51:15 | INFO    | Theta kill 15:00 | Dead zone 12:00–13:00 | ORB ends 09:45
+04:51:15 | INFO    | ============================================================
+04:51:15 | INFO    | RESTORED position NIFTY-Jun2026-24150-CE qty=65 entry=71.25 TP=92.62 SL=60.56
+04:51:15 | INFO    | ── 10:21:15 | trade=1/3 | active=True | pnl=₹0 ──
+04:51:16 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.80 PnL=6.4% (₹296) TP=92.62 SL=60.56 peak=75.80
+04:52:16 | INFO    | ── 10:22:16 | trade=1/3 | active=True | pnl=₹0 ──
+04:52:16 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.90 PnL=3.7% (₹172) TP=92.62 SL=60.56 peak=75.80
+04:53:16 | INFO    | ── 10:23:16 | trade=1/3 | active=True | pnl=₹0 ──
+04:53:16 | INFO    | VOLUME GATE: low_vol=1862527<5222797 — no entry
+04:53:16 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+04:53:16 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.20 PnL=4.1% (₹192) TP=92.62 SL=60.56 peak=75.80
+04:54:16 | INFO    | ── 10:24:16 | trade=1/3 | active=True | pnl=₹0 ──
+04:54:16 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.05 PnL=5.3% (₹247) TP=92.62 SL=60.56 peak=75.80
+04:55:16 | INFO    | ── 10:25:16 | trade=1/3 | active=True | pnl=₹0 ──
+04:55:16 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.60 PnL=1.9% (₹88) TP=92.62 SL=60.56 peak=75.80
+04:56:16 | INFO    | ── 10:26:16 | trade=1/3 | active=True | pnl=₹0 ──
+04:56:17 | INFO    | VOLUME GATE: low_vol=802338<4832146 — no entry
+04:56:17 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+04:56:17 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.70 PnL=3.4% (₹159) TP=92.62 SL=60.56 peak=75.80
+04:57:17 | INFO    | ── 10:27:17 | trade=1/3 | active=True | pnl=₹0 ──
+04:57:17 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.00 PnL=5.3% (₹244) TP=92.62 SL=60.56 peak=75.80
+04:58:17 | INFO    | ── 10:28:17 | trade=1/3 | active=True | pnl=₹0 ──
+04:58:17 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.45 PnL=4.5% (₹208) TP=92.62 SL=60.56 peak=75.80
+04:59:17 | INFO    | ── 10:29:17 | trade=1/3 | active=True | pnl=₹0 ──
+04:59:18 | INFO    | VOLUME GATE: low_vol=3183249<5189283 — no entry
+04:59:18 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+04:59:18 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.00 PnL=5.3% (₹244) TP=92.62 SL=60.56 peak=75.80
+05:00:18 | INFO    | ── 10:30:18 | trade=1/3 | active=True | pnl=₹0 ──
+05:00:18 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=76.40 PnL=7.2% (₹335) TP=92.62 SL=60.56 peak=76.40
+05:01:18 | INFO    | ── 10:31:18 | trade=1/3 | active=True | pnl=₹0 ──
+05:01:18 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.65 PnL=6.2% (₹286) TP=92.62 SL=60.56 peak=76.40
+05:02:18 | INFO    | ── 10:32:18 | trade=1/3 | active=True | pnl=₹0 ──
+05:02:18 | INFO    | VOLUME GATE: low_vol=1273442<4892758 — no entry
+05:02:18 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:02:18 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.10 PnL=2.6% (₹120) TP=92.62 SL=60.56 peak=76.40
+05:03:18 | INFO    | ── 10:33:18 | trade=1/3 | active=True | pnl=₹0 ──
+05:03:18 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=71.15 PnL=-0.1% (₹-6) TP=92.62 SL=60.56 peak=76.40
+05:04:18 | INFO    | ── 10:34:18 | trade=1/3 | active=True | pnl=₹0 ──
+05:04:19 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=70.20 PnL=-1.5% (₹-68) TP=92.62 SL=60.56 peak=76.40
+05:05:19 | INFO    | ── 10:35:19 | trade=1/3 | active=True | pnl=₹0 ──
+05:05:19 | INFO    | VOLUME GATE: low_vol=210763<4669364 — no entry
+05:05:19 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:05:19 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=69.55 PnL=-2.4% (₹-111) TP=92.62 SL=60.56 peak=76.40
+05:06:19 | INFO    | ── 10:36:19 | trade=1/3 | active=True | pnl=₹0 ──
+05:06:19 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=71.55 PnL=0.4% (₹19) TP=92.62 SL=60.56 peak=76.40
+05:07:19 | INFO    | ── 10:37:19 | trade=1/3 | active=True | pnl=₹0 ──
+05:07:19 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.15 PnL=1.3% (₹59) TP=92.62 SL=60.56 peak=76.40
+05:08:19 | INFO    | ── 10:38:19 | trade=1/3 | active=True | pnl=₹0 ──
+05:08:20 | INFO    | VOLUME GATE: low_vol=1778756<4904563 — no entry
+05:08:20 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:08:20 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=76.25 PnL=7.0% (₹325) TP=92.62 SL=60.56 peak=76.40
+05:09:20 | INFO    | ── 10:39:20 | trade=1/3 | active=True | pnl=₹0 ──
+05:09:20 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.75 PnL=3.5% (₹162) TP=92.62 SL=60.56 peak=76.40
+05:10:20 | INFO    | ── 10:40:20 | trade=1/3 | active=True | pnl=₹0 ──
+05:10:20 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.70 PnL=4.8% (₹224) TP=92.62 SL=60.56 peak=76.40
+05:11:20 | INFO    | ── 10:41:20 | trade=1/3 | active=True | pnl=₹0 ──
+05:11:20 | INFO    | VOLUME GATE: low_vol=635409<4497418 — no entry
+05:11:20 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:11:20 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.30 PnL=5.7% (₹263) TP=92.62 SL=60.56 peak=76.40
+05:12:20 | INFO    | ── 10:42:20 | trade=1/3 | active=True | pnl=₹0 ──
+05:12:21 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.65 PnL=4.8% (₹221) TP=92.62 SL=60.56 peak=76.40
+05:13:21 | INFO    | ── 10:43:21 | trade=1/3 | active=True | pnl=₹0 ──
+05:13:21 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.15 PnL=4.1% (₹189) TP=92.62 SL=60.56 peak=76.40
+05:14:21 | INFO    | ── 10:44:21 | trade=1/3 | active=True | pnl=₹0 ──
+05:14:21 | INFO    | VOLUME GATE: low_vol=2140734<4723217 — no entry
+05:14:21 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:14:21 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.15 PnL=4.1% (₹189) TP=92.62 SL=60.56 peak=76.40
+05:15:21 | INFO    | ── 10:45:21 | trade=1/3 | active=True | pnl=₹0 ──
+05:15:21 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.60 PnL=4.7% (₹218) TP=92.62 SL=60.56 peak=76.40
+05:16:21 | INFO    | ── 10:46:21 | trade=1/3 | active=True | pnl=₹0 ──
+05:16:21 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.40 PnL=5.8% (₹270) TP=92.62 SL=60.56 peak=76.40
+05:17:21 | INFO    | ── 10:47:21 | trade=1/3 | active=True | pnl=₹0 ──
+05:17:22 | INFO    | VOLUME GATE: low_vol=977208<4295696 — no entry
+05:17:22 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:17:22 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.75 PnL=4.9% (₹228) TP=92.62 SL=60.56 peak=76.40
+05:18:22 | INFO    | ── 10:48:22 | trade=1/3 | active=True | pnl=₹0 ──
+05:18:22 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=70.95 PnL=-0.4% (₹-19) TP=92.62 SL=60.56 peak=76.40
+05:19:22 | INFO    | ── 10:49:22 | trade=1/3 | active=True | pnl=₹0 ──
+05:19:22 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=71.90 PnL=0.9% (₹42) TP=92.62 SL=60.56 peak=76.40
+05:20:22 | INFO    | ── 10:50:22 | trade=1/3 | active=True | pnl=₹0 ──
+05:20:23 | INFO    | VOLUME GATE: low_vol=96602<3891794 — no entry
+05:20:23 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:20:23 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.45 PnL=1.7% (₹78) TP=92.62 SL=60.56 peak=76.40
+05:21:23 | INFO    | ── 10:51:23 | trade=1/3 | active=True | pnl=₹0 ──
+05:21:23 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.20 PnL=4.1% (₹192) TP=92.62 SL=60.56 peak=76.40
+05:22:23 | INFO    | ── 10:52:23 | trade=1/3 | active=True | pnl=₹0 ──
+05:22:23 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.50 PnL=6.0% (₹276) TP=92.62 SL=60.56 peak=76.40
+05:23:23 | INFO    | ── 10:53:23 | trade=1/3 | active=True | pnl=₹0 ──
+05:23:23 | INFO    | VOLUME GATE: low_vol=1184434<4054968 — no entry
+05:23:23 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:23:23 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.80 PnL=5.0% (₹231) TP=92.62 SL=60.56 peak=76.40
+05:24:23 | INFO    | ── 10:54:23 | trade=1/3 | active=True | pnl=₹0 ──
+05:24:23 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.20 PnL=5.5% (₹257) TP=92.62 SL=60.56 peak=76.40
+05:25:23 | INFO    | ── 10:55:23 | trade=1/3 | active=True | pnl=₹0 ──
+05:25:24 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.30 PnL=4.3% (₹198) TP=92.62 SL=60.56 peak=76.40
+05:26:24 | INFO    | ── 10:56:24 | trade=1/3 | active=True | pnl=₹0 ──
+05:26:24 | INFO    | VOLUME GATE: low_vol=822340<3774304 — no entry
+05:26:24 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:26:24 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.45 PnL=5.9% (₹273) TP=92.62 SL=60.56 peak=76.40
+05:27:24 | INFO    | ── 10:57:24 | trade=1/3 | active=True | pnl=₹0 ──
+05:27:24 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.55 PnL=6.0% (₹279) TP=92.62 SL=60.56 peak=76.40
+05:28:24 | INFO    | ── 10:58:24 | trade=1/3 | active=True | pnl=₹0 ──
+05:28:24 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.25 PnL=4.2% (₹195) TP=92.62 SL=60.56 peak=76.40
+05:29:24 | INFO    | ── 10:59:24 | trade=1/3 | active=True | pnl=₹0 ──
+05:29:25 | INFO    | VOLUME GATE: low_vol=2882376<4083310 — no entry
+05:29:25 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:29:25 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.45 PnL=4.5% (₹208) TP=92.62 SL=60.56 peak=76.40
+05:30:25 | INFO    | ── 11:00:25 | trade=1/3 | active=True | pnl=₹0 ──
+05:30:25 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.00 PnL=2.5% (₹114) TP=92.62 SL=60.56 peak=76.40
+05:31:25 | INFO    | ── 11:01:25 | trade=1/3 | active=True | pnl=₹0 ──
+05:31:25 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.55 PnL=3.2% (₹149) TP=92.62 SL=60.56 peak=76.40
+05:32:25 | INFO    | ── 11:02:25 | trade=1/3 | active=True | pnl=₹0 ──
+05:32:25 | INFO    | VOLUME GATE: low_vol=946968<3773263 — no entry
+05:32:25 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:32:25 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.70 PnL=3.4% (₹159) TP=92.62 SL=60.56 peak=76.40
+05:33:25 | INFO    | ── 11:03:25 | trade=1/3 | active=True | pnl=₹0 ──
+05:33:26 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.00 PnL=2.5% (₹114) TP=92.62 SL=60.56 peak=76.40
+05:34:26 | INFO    | ── 11:04:26 | trade=1/3 | active=True | pnl=₹0 ──
+05:34:26 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.50 PnL=4.6% (₹211) TP=92.62 SL=60.56 peak=76.40
+05:35:26 | INFO    | ── 11:05:26 | trade=1/3 | active=True | pnl=₹0 ──
+05:35:26 | INFO    | VOLUME GATE: low_vol=140710<3509644 — no entry
+05:35:26 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:35:26 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.55 PnL=6.0% (₹279) TP=92.62 SL=60.56 peak=76.40
+05:36:26 | INFO    | ── 11:06:26 | trade=1/3 | active=True | pnl=₹0 ──
+05:36:26 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.70 PnL=6.2% (₹289) TP=92.62 SL=60.56 peak=76.40
+05:37:26 | INFO    | ── 11:07:26 | trade=1/3 | active=True | pnl=₹0 ──
+05:37:26 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=76.50 PnL=7.4% (₹341) TP=92.62 SL=60.56 peak=76.50
+05:38:26 | INFO    | ── 11:08:26 | trade=1/3 | active=True | pnl=₹0 ──
+05:38:27 | INFO    | VOLUME GATE: low_vol=1612085<3730350 — no entry
+05:38:27 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:38:27 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.95 PnL=3.8% (₹176) TP=92.62 SL=60.56 peak=76.50
+05:39:27 | INFO    | ── 11:09:27 | trade=1/3 | active=True | pnl=₹0 ──
+05:39:27 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.70 PnL=6.2% (₹289) TP=92.62 SL=60.56 peak=76.50
+05:40:27 | INFO    | ── 11:10:27 | trade=1/3 | active=True | pnl=₹0 ──
+05:40:27 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.25 PnL=5.6% (₹260) TP=92.62 SL=60.56 peak=76.50
+05:41:27 | INFO    | ── 11:11:27 | trade=1/3 | active=True | pnl=₹0 ──
+05:41:28 | INFO    | VOLUME GATE: low_vol=649696<3547817 — no entry
+05:41:28 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:41:28 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.00 PnL=2.5% (₹114) TP=92.62 SL=60.56 peak=76.50
+05:42:28 | INFO    | ── 11:12:28 | trade=1/3 | active=True | pnl=₹0 ──
+05:42:28 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.50 PnL=4.6% (₹211) TP=92.62 SL=60.56 peak=76.50
+05:43:28 | INFO    | ── 11:13:28 | trade=1/3 | active=True | pnl=₹0 ──
+05:43:28 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.00 PnL=3.9% (₹179) TP=92.62 SL=60.56 peak=76.50
+05:44:28 | INFO    | ── 11:14:28 | trade=1/3 | active=True | pnl=₹0 ──
+05:44:28 | INFO    | VOLUME GATE: low_vol=1782395<3717722 — no entry
+05:44:28 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:44:28 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.80 PnL=2.2% (₹101) TP=92.62 SL=60.56 peak=76.50
+05:45:28 | INFO    | ── 11:15:28 | trade=1/3 | active=True | pnl=₹0 ──
+05:45:28 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.55 PnL=3.2% (₹149) TP=92.62 SL=60.56 peak=76.50
+05:46:28 | INFO    | ── 11:16:28 | trade=1/3 | active=True | pnl=₹0 ──
+05:46:29 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.45 PnL=1.7% (₹78) TP=92.62 SL=60.56 peak=76.50
+05:47:29 | INFO    | ── 11:17:29 | trade=1/3 | active=True | pnl=₹0 ──
+05:47:29 | INFO    | VOLUME GATE: low_vol=992869<3366876 — no entry
+05:47:29 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:47:29 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.05 PnL=1.1% (₹52) TP=92.62 SL=60.56 peak=76.50
+05:48:29 | INFO    | ── 11:18:29 | trade=1/3 | active=True | pnl=₹0 ──
+05:48:29 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=71.95 PnL=1.0% (₹46) TP=92.62 SL=60.56 peak=76.50
+05:49:29 | INFO    | ── 11:19:29 | trade=1/3 | active=True | pnl=₹0 ──
+05:49:29 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=71.95 PnL=1.0% (₹46) TP=92.62 SL=60.56 peak=76.50
+05:50:29 | INFO    | ── 11:20:29 | trade=1/3 | active=True | pnl=₹0 ──
+05:50:30 | INFO    | VOLUME GATE: low_vol=240246<3138650 — no entry
+05:50:30 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:50:30 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=71.30 PnL=0.1% (₹3) TP=92.62 SL=60.56 peak=76.50
+05:51:30 | INFO    | ── 11:21:30 | trade=1/3 | active=True | pnl=₹0 ──
+05:51:30 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=70.90 PnL=-0.5% (₹-23) TP=92.62 SL=60.56 peak=76.50
+05:52:30 | INFO    | ── 11:22:30 | trade=1/3 | active=True | pnl=₹0 ──
+05:52:30 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=70.95 PnL=-0.4% (₹-19) TP=92.62 SL=60.56 peak=76.50
+05:53:30 | INFO    | ── 11:23:30 | trade=1/3 | active=True | pnl=₹0 ──
+05:53:30 | INFO    | VOLUME GATE: low_vol=1764765<3367327 — no entry
+05:53:30 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:53:30 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=70.70 PnL=-0.8% (₹-36) TP=92.62 SL=60.56 peak=76.50
+05:54:30 | INFO    | ── 11:24:30 | trade=1/3 | active=True | pnl=₹0 ──
+05:54:31 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.70 PnL=2.0% (₹94) TP=92.62 SL=60.56 peak=76.50
+05:55:31 | INFO    | ── 11:25:31 | trade=1/3 | active=True | pnl=₹0 ──
+05:55:31 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.15 PnL=1.3% (₹59) TP=92.62 SL=60.56 peak=76.50
+05:56:31 | INFO    | ── 11:26:31 | trade=1/3 | active=True | pnl=₹0 ──
+05:56:31 | INFO    | VOLUME GATE: low_vol=745584<3156094 — no entry
+05:56:31 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:56:31 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.90 PnL=5.1% (₹237) TP=92.62 SL=60.56 peak=76.50
+05:57:31 | INFO    | ── 11:27:31 | trade=1/3 | active=True | pnl=₹0 ──
+05:57:31 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.35 PnL=4.4% (₹201) TP=92.62 SL=60.56 peak=76.50
+05:58:31 | INFO    | ── 11:28:31 | trade=1/3 | active=True | pnl=₹0 ──
+05:58:32 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.70 PnL=6.2% (₹289) TP=92.62 SL=60.56 peak=76.50
+05:59:32 | INFO    | ── 11:29:32 | trade=1/3 | active=True | pnl=₹0 ──
+05:59:32 | INFO    | VOLUME GATE: low_vol=2175812<3370628 — no entry
+05:59:32 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+05:59:32 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.10 PnL=5.4% (₹250) TP=92.62 SL=60.56 peak=76.50
+06:00:32 | INFO    | ── 11:30:32 | trade=1/3 | active=True | pnl=₹0 ──
+06:00:32 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.85 PnL=6.5% (₹299) TP=92.62 SL=60.56 peak=76.50
+06:01:32 | INFO    | ── 11:31:32 | trade=1/3 | active=True | pnl=₹0 ──
+06:01:32 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=77.25 PnL=8.4% (₹390) TP=92.62 SL=60.56 peak=77.25
+06:02:32 | INFO    | ── 11:32:32 | trade=1/3 | active=True | pnl=₹0 ──
+06:02:33 | INFO    | VOLUME GATE: low_vol=855505<3160004 — no entry
+06:02:33 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:02:33 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=77.50 PnL=8.8% (₹406) TP=92.62 SL=60.56 peak=77.50
+06:03:33 | INFO    | ── 11:33:33 | trade=1/3 | active=True | pnl=₹0 ──
+06:03:33 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=77.20 PnL=8.4% (₹387) TP=92.62 SL=60.56 peak=77.50
+06:04:33 | INFO    | ── 11:34:33 | trade=1/3 | active=True | pnl=₹0 ──
+06:04:33 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=76.60 PnL=7.5% (₹348) TP=92.62 SL=60.56 peak=77.50
+06:05:33 | INFO    | ── 11:35:33 | trade=1/3 | active=True | pnl=₹0 ──
+06:05:33 | INFO    | VOLUME GATE: low_vol=270837<3067022 — no entry
+06:05:33 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:05:33 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=77.35 PnL=8.6% (₹396) TP=92.62 SL=60.56 peak=77.50
+06:06:33 | INFO    | ── 11:36:33 | trade=1/3 | active=True | pnl=₹0 ──
+06:06:34 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.85 PnL=6.5% (₹299) TP=92.62 SL=60.56 peak=77.50
+06:07:34 | INFO    | ── 11:37:34 | trade=1/3 | active=True | pnl=₹0 ──
+06:07:34 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.65 PnL=4.8% (₹221) TP=92.62 SL=60.56 peak=77.50
+06:08:34 | INFO    | ── 11:38:34 | trade=1/3 | active=True | pnl=₹0 ──
+06:08:34 | INFO    | VOLUME GATE: low_vol=1659654<3275344 — no entry
+06:08:34 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:08:34 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=75.00 PnL=5.3% (₹244) TP=92.62 SL=60.56 peak=77.50
+06:09:34 | INFO    | ── 11:39:34 | trade=1/3 | active=True | pnl=₹0 ──
+06:09:34 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.00 PnL=3.9% (₹179) TP=92.62 SL=60.56 peak=77.50
+06:10:34 | INFO    | ── 11:40:34 | trade=1/3 | active=True | pnl=₹0 ──
+06:10:34 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=74.55 PnL=4.6% (₹214) TP=92.62 SL=60.56 peak=77.50
+06:11:34 | INFO    | ── 11:41:34 | trade=1/3 | active=True | pnl=₹0 ──
+06:11:35 | INFO    | VOLUME GATE: low_vol=681176<3179177 — no entry
+06:11:35 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:11:35 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=71.50 PnL=0.4% (₹16) TP=92.62 SL=60.56 peak=77.50
+06:12:35 | INFO    | ── 11:42:35 | trade=1/3 | active=True | pnl=₹0 ──
+06:12:35 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.70 PnL=2.0% (₹94) TP=92.62 SL=60.56 peak=77.50
+06:13:35 | INFO    | ── 11:43:35 | trade=1/3 | active=True | pnl=₹0 ──
+06:13:35 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.55 PnL=1.8% (₹84) TP=92.62 SL=60.56 peak=77.50
+06:14:35 | INFO    | ── 11:44:35 | trade=1/3 | active=True | pnl=₹0 ──
+06:14:36 | INFO    | VOLUME GATE: low_vol=2469529<3447430 — no entry
+06:14:36 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:14:36 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.35 PnL=1.5% (₹71) TP=92.62 SL=60.56 peak=77.50
+06:15:36 | INFO    | ── 11:45:36 | trade=1/3 | active=True | pnl=₹0 ──
+06:15:36 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=71.25 PnL=0.0% (₹0) TP=92.62 SL=60.56 peak=77.50
+06:16:36 | INFO    | ── 11:46:36 | trade=1/3 | active=True | pnl=₹0 ──
+06:16:36 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.30 PnL=1.5% (₹68) TP=92.62 SL=60.56 peak=77.50
+06:17:36 | INFO    | ── 11:47:36 | trade=1/3 | active=True | pnl=₹0 ──
+06:17:36 | INFO    | VOLUME GATE: low_vol=987213<3153677 — no entry
+06:17:36 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:17:36 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.80 PnL=3.6% (₹166) TP=92.62 SL=60.56 peak=77.50
+06:18:36 | INFO    | ── 11:48:36 | trade=1/3 | active=True | pnl=₹0 ──
+06:18:36 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=73.35 PnL=2.9% (₹136) TP=92.62 SL=60.56 peak=77.50
+06:19:36 | INFO    | ── 11:49:36 | trade=1/3 | active=True | pnl=₹0 ──
+06:19:37 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=71.80 PnL=0.8% (₹36) TP=92.62 SL=60.56 peak=77.50
+06:20:37 | INFO    | ── 11:50:37 | trade=1/3 | active=True | pnl=₹0 ──
+06:20:37 | INFO    | VOLUME GATE: low_vol=370141<3011065 — no entry
+06:20:37 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:20:37 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=72.05 PnL=1.1% (₹52) TP=92.62 SL=60.56 peak=77.50
+06:21:37 | INFO    | ── 11:51:37 | trade=1/3 | active=True | pnl=₹0 ──
+06:21:37 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=70.40 PnL=-1.2% (₹-55) TP=92.62 SL=60.56 peak=77.50
+06:22:37 | INFO    | ── 11:52:37 | trade=1/3 | active=True | pnl=₹0 ──
+06:22:37 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=69.80 PnL=-2.0% (₹-94) TP=92.62 SL=60.56 peak=77.50
+06:23:37 | INFO    | ── 11:53:37 | trade=1/3 | active=True | pnl=₹0 ──
+06:23:38 | INFO    | VOLUME GATE: low_vol=1654252<3203681 — no entry
+06:23:38 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:23:38 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=69.25 PnL=-2.8% (₹-130) TP=92.62 SL=60.56 peak=77.50
+06:24:38 | INFO    | ── 11:54:38 | trade=1/3 | active=True | pnl=₹0 ──
+06:24:38 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=67.65 PnL=-5.1% (₹-234) TP=92.62 SL=60.56 peak=77.50
+06:25:38 | INFO    | ── 11:55:38 | trade=1/3 | active=True | pnl=₹0 ──
+06:25:38 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=67.90 PnL=-4.7% (₹-218) TP=92.62 SL=60.56 peak=77.50
+06:26:38 | INFO    | ── 11:56:38 | trade=1/3 | active=True | pnl=₹0 ──
+06:26:38 | INFO    | VOLUME GATE: low_vol=834717<3111485 — no entry
+06:26:38 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:26:38 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=67.80 PnL=-4.8% (₹-224) TP=92.62 SL=60.56 peak=77.50
+06:27:38 | INFO    | ── 11:57:38 | trade=1/3 | active=True | pnl=₹0 ──
+06:27:38 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=67.90 PnL=-4.7% (₹-218) TP=92.62 SL=60.56 peak=77.50
+06:28:38 | INFO    | ── 11:58:38 | trade=1/3 | active=True | pnl=₹0 ──
+06:28:39 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=68.85 PnL=-3.4% (₹-156) TP=92.62 SL=60.56 peak=77.50
+06:29:39 | INFO    | ── 11:59:39 | trade=1/3 | active=True | pnl=₹0 ──
+06:29:39 | INFO    | VOLUME GATE: low_vol=2313223<3333261 — no entry
+06:29:39 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:29:39 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=70.25 PnL=-1.4% (₹-65) TP=92.62 SL=60.56 peak=77.50
+06:30:39 | INFO    | ── 12:00:39 | trade=1/3 | active=True | pnl=₹0 ──
+06:30:39 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=69.05 PnL=-3.1% (₹-143) TP=92.62 SL=60.56 peak=77.50
+06:31:39 | INFO    | ── 12:01:39 | trade=1/3 | active=True | pnl=₹0 ──
+06:31:39 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=67.30 PnL=-5.5% (₹-257) TP=92.62 SL=60.56 peak=77.50
+06:32:39 | INFO    | ── 12:02:39 | trade=1/3 | active=True | pnl=₹0 ──
+06:32:40 | INFO    | VOLUME GATE: low_vol=1227357<3245260 — no entry
+06:32:40 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:32:40 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.60 PnL=-9.3% (₹-432) TP=92.62 SL=60.56 peak=77.50
+06:33:40 | INFO    | ── 12:03:40 | trade=1/3 | active=True | pnl=₹0 ──
+06:33:40 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.90 PnL=-8.9% (₹-413) TP=92.62 SL=60.56 peak=77.50
+06:34:40 | INFO    | ── 12:04:40 | trade=1/3 | active=True | pnl=₹0 ──
+06:34:40 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=63.90 PnL=-10.3% (₹-478) TP=92.62 SL=60.56 peak=77.50
+06:35:40 | INFO    | ── 12:05:40 | trade=1/3 | active=True | pnl=₹0 ──
+06:35:41 | INFO    | VOLUME GATE: low_vol=246482<3124785 — no entry
+06:35:41 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:35:41 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.35 PnL=-9.7% (₹-449) TP=92.62 SL=60.56 peak=77.50
+06:36:41 | INFO    | ── 12:06:41 | trade=1/3 | active=True | pnl=₹0 ──
+06:36:41 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.30 PnL=-9.8% (₹-452) TP=92.62 SL=60.56 peak=77.50
+06:37:41 | INFO    | ── 12:07:41 | trade=1/3 | active=True | pnl=₹0 ──
+06:37:41 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.85 PnL=-9.0% (₹-416) TP=92.62 SL=60.56 peak=77.50
+06:38:41 | INFO    | ── 12:08:41 | trade=1/3 | active=True | pnl=₹0 ──
+06:38:41 | INFO    | VOLUME GATE: low_vol=1322750<3286226 — no entry
+06:38:41 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:38:41 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=65.00 PnL=-8.8% (₹-406) TP=92.62 SL=60.56 peak=77.50
+06:39:41 | INFO    | ── 12:09:41 | trade=1/3 | active=True | pnl=₹0 ──
+06:39:41 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.45 PnL=-9.5% (₹-442) TP=92.62 SL=60.56 peak=77.50
+06:40:41 | INFO    | ── 12:10:41 | trade=1/3 | active=True | pnl=₹0 ──
+06:40:42 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.75 PnL=-9.1% (₹-422) TP=92.62 SL=60.56 peak=77.50
+06:41:42 | INFO    | ── 12:11:42 | trade=1/3 | active=True | pnl=₹0 ──
+06:41:42 | INFO    | VOLUME GATE: low_vol=519722<3087751 — no entry
+06:41:42 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:41:42 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=65.00 PnL=-8.8% (₹-406) TP=92.62 SL=60.56 peak=77.50
+06:42:42 | INFO    | ── 12:12:42 | trade=1/3 | active=True | pnl=₹0 ──
+06:42:42 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.80 PnL=-9.1% (₹-419) TP=92.62 SL=60.56 peak=77.50
+06:43:42 | INFO    | ── 12:13:42 | trade=1/3 | active=True | pnl=₹0 ──
+06:43:42 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.40 PnL=-9.6% (₹-445) TP=92.62 SL=60.56 peak=77.50
+06:44:42 | INFO    | ── 12:14:42 | trade=1/3 | active=True | pnl=₹0 ──
+06:44:43 | INFO    | VOLUME GATE: low_vol=1564623<3244486 — no entry
+06:44:43 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:44:43 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=62.85 PnL=-11.8% (₹-546) TP=92.62 SL=60.56 peak=77.50
+06:45:43 | INFO    | ── 12:15:43 | trade=1/3 | active=True | pnl=₹0 ──
+06:45:43 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=62.80 PnL=-11.9% (₹-549) TP=92.62 SL=60.56 peak=77.50
+06:46:43 | INFO    | ── 12:16:43 | trade=1/3 | active=True | pnl=₹0 ──
+06:46:43 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=63.05 PnL=-11.5% (₹-533) TP=92.62 SL=60.56 peak=77.50
+06:47:43 | INFO    | ── 12:17:43 | trade=1/3 | active=True | pnl=₹0 ──
+06:47:44 | INFO    | VOLUME GATE: low_vol=1228124<3096911 — no entry
+06:47:44 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:47:44 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=63.05 PnL=-11.5% (₹-533) TP=92.62 SL=60.56 peak=77.50
+06:48:44 | INFO    | ── 12:18:44 | trade=1/3 | active=True | pnl=₹0 ──
+06:48:44 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=65.05 PnL=-8.7% (₹-403) TP=92.62 SL=60.56 peak=77.50
+06:49:44 | INFO    | ── 12:19:44 | trade=1/3 | active=True | pnl=₹0 ──
+06:49:44 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.10 PnL=-10.0% (₹-465) TP=92.62 SL=60.56 peak=77.50
+06:50:44 | INFO    | ── 12:20:44 | trade=1/3 | active=True | pnl=₹0 ──
+06:50:44 | INFO    | VOLUME GATE: low_vol=195660<2987201 — no entry
+06:50:44 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:50:44 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=63.20 PnL=-11.3% (₹-523) TP=92.62 SL=60.56 peak=77.50
+06:51:44 | INFO    | ── 12:21:44 | trade=1/3 | active=True | pnl=₹0 ──
+06:51:45 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.80 PnL=-9.1% (₹-419) TP=92.62 SL=60.56 peak=77.50
+06:52:45 | INFO    | ── 12:22:45 | trade=1/3 | active=True | pnl=₹0 ──
+06:52:45 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=66.55 PnL=-6.6% (₹-306) TP=92.62 SL=60.56 peak=77.50
+06:53:45 | INFO    | ── 12:23:45 | trade=1/3 | active=True | pnl=₹0 ──
+06:53:45 | INFO    | VOLUME GATE: low_vol=1156167<3131277 — no entry
+06:53:45 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:53:45 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=67.00 PnL=-6.0% (₹-276) TP=92.62 SL=60.56 peak=77.50
+06:54:45 | INFO    | ── 12:24:45 | trade=1/3 | active=True | pnl=₹0 ──
+06:54:45 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=67.05 PnL=-5.9% (₹-273) TP=92.62 SL=60.56 peak=77.50
+06:55:45 | INFO    | ── 12:25:45 | trade=1/3 | active=True | pnl=₹0 ──
+06:55:45 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=66.00 PnL=-7.4% (₹-341) TP=92.62 SL=60.56 peak=77.50
+06:56:45 | INFO    | ── 12:26:45 | trade=1/3 | active=True | pnl=₹0 ──
+06:56:46 | INFO    | VOLUME GATE: low_vol=813568<2986977 — no entry
+06:56:46 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:56:46 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.75 PnL=-9.1% (₹-422) TP=92.62 SL=60.56 peak=77.50
+06:57:46 | INFO    | ── 12:27:46 | trade=1/3 | active=True | pnl=₹0 ──
+06:57:46 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=62.35 PnL=-12.5% (₹-578) TP=92.62 SL=60.56 peak=77.50
+06:58:46 | INFO    | ── 12:28:46 | trade=1/3 | active=True | pnl=₹0 ──
+06:58:46 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=61.70 PnL=-13.4% (₹-621) TP=92.62 SL=60.56 peak=77.50
+06:59:46 | INFO    | ── 12:29:46 | trade=1/3 | active=True | pnl=₹0 ──
+06:59:47 | INFO    | VOLUME GATE: low_vol=2242886<3201375 — no entry
+06:59:47 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+06:59:47 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=62.75 PnL=-11.9% (₹-552) TP=92.62 SL=60.56 peak=77.50
+07:00:47 | INFO    | ── 12:30:47 | trade=1/3 | active=True | pnl=₹0 ──
+07:00:47 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=63.10 PnL=-11.4% (₹-530) TP=92.62 SL=60.56 peak=77.50
+07:01:47 | INFO    | ── 12:31:47 | trade=1/3 | active=True | pnl=₹0 ──
+07:01:47 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=62.55 PnL=-12.2% (₹-566) TP=92.62 SL=60.56 peak=77.50
+07:02:47 | INFO    | ── 12:32:47 | trade=1/3 | active=True | pnl=₹0 ──
+07:02:47 | INFO    | VOLUME GATE: low_vol=1386098<3027944 — no entry
+07:02:47 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+07:02:47 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=60.95 PnL=-14.5% (₹-669) TP=92.62 SL=60.56 peak=77.50
+07:03:47 | INFO    | ── 12:33:47 | trade=1/3 | active=True | pnl=₹0 ──
+07:03:47 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=64.35 PnL=-9.7% (₹-449) TP=92.62 SL=60.56 peak=77.50
+07:04:47 | INFO    | ── 12:34:47 | trade=1/3 | active=True | pnl=₹0 ──
+07:04:48 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=63.15 PnL=-11.4% (₹-527) TP=92.62 SL=60.56 peak=77.50
+07:05:48 | INFO    | ── 12:35:48 | trade=1/3 | active=True | pnl=₹0 ──
+07:05:48 | INFO    | VOLUME GATE: low_vol=344243<2914841 — no entry
+07:05:48 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+07:05:48 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=62.85 PnL=-11.8% (₹-546) TP=92.62 SL=60.56 peak=77.50
+07:06:48 | INFO    | ── 12:36:48 | trade=1/3 | active=True | pnl=₹0 ──
+07:06:48 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=63.00 PnL=-11.6% (₹-536) TP=92.62 SL=60.56 peak=77.50
+07:07:48 | INFO    | ── 12:37:48 | trade=1/3 | active=True | pnl=₹0 ──
+07:07:48 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=61.45 PnL=-13.8% (₹-637) TP=92.62 SL=60.56 peak=77.50
+07:08:48 | INFO    | ── 12:38:48 | trade=1/3 | active=True | pnl=₹0 ──
+07:08:49 | INFO    | VOLUME GATE: low_vol=1462777<3082621 — no entry
+07:08:49 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+07:08:49 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=61.40 PnL=-13.8% (₹-640) TP=92.62 SL=60.56 peak=77.50
+07:09:49 | INFO    | ── 12:39:49 | trade=1/3 | active=True | pnl=₹0 ──
+07:09:49 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=60.95 PnL=-14.5% (₹-669) TP=92.62 SL=60.56 peak=77.50
+07:10:49 | INFO    | ── 12:40:49 | trade=1/3 | active=True | pnl=₹0 ──
+07:10:49 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=61.10 PnL=-14.2% (₹-660) TP=92.62 SL=60.56 peak=77.50
+07:11:49 | INFO    | ── 12:41:49 | trade=1/3 | active=True | pnl=₹0 ──
+07:11:49 | INFO    | VOLUME GATE: low_vol=767554<2857094 — no entry
+07:11:49 | INFO    | MOMENTUM refresh score=0 (bull=0 bear=0)
+07:11:49 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=60.90 PnL=-14.5% (₹-673) TP=92.62 SL=60.56 peak=77.50
+07:12:49 | INFO    | ── 12:42:49 | trade=1/3 | active=True | pnl=₹0 ──
+07:12:50 | INFO    | MONITOR NIFTY-Jun2026-24150-CE LTP=60.35 PnL=-15.3% (₹-708) TP=92.62 SL=60.56 peak=77.50
+07:12:50 | INFO    | EXIT SL ❌ @ ₹60.35
+07:12:50 | INFO    | ORDER SELL sid=56380 qty=65 → orderId=23226062293810
+07:12:50 | INFO    | CLOSED entry=71.25 exit=60.35 PnL=₹-708 | daily=₹-708
+07:13:50 | INFO    | ── 12:43:50 | trade=1/3 | active=False | pnl=₹-708 ──
+07:13:54 | INFO    | Spot=24118.95 | 5m 12:40 C=24117.80 | 5m_bars=30 15m_bars=14
+07:13:54 | INFO    | DEAD ZONE — no trades
+07:14:54 | INFO    | ── 12:44:54 | trade=1/3 | active=False | pnl=₹-708 ──
+07:14:59 | INFO    | Spot=24118.95 | 5m 12:40 C=24118.70 | 5m_bars=30 15m_bars=14
+07:14:59 | INFO    | DEAD ZONE — no trades
+07:15:59 | INFO    | ── 12:45:59 | trade=1/3 | active=False | pnl=₹-708 ──
+07:16:03 | INFO    | Spot=24116.95 | 5m 12:45 C=24117.35 | 5m_bars=30 15m_bars=15
+07:16:03 | INFO    | DEAD ZONE — no trades
+07:17:03 | INFO    | ── 12:47:03 | trade=1/3 | active=False | pnl=₹-708 ──
+07:17:07 | INFO    | Spot=24116.75 | 5m 12:45 C=24117.50 | 5m_bars=30 15m_bars=15
+07:17:07 | INFO    | DEAD ZONE — no trades
+07:18:07 | INFO    | ── 12:48:07 | trade=1/3 | active=False | pnl=₹-708 ──
+07:18:12 | INFO    | Spot=24114.50 | 5m 12:45 C=24113.65 | 5m_bars=30 15m_bars=15
+07:18:12 | INFO    | DEAD ZONE — no trades
+07:19:12 | INFO    | ── 12:49:12 | trade=1/3 | active=False | pnl=₹-708 ──
+07:19:16 | INFO    | Spot=24120.15 | 5m 12:45 C=24118.15 | 5m_bars=30 15m_bars=15
+07:19:16 | INFO    | DEAD ZONE — no trades
+07:20:16 | INFO    | ── 12:50:16 | trade=1/3 | active=False | pnl=₹-708 ──
+07:20:21 | INFO    | Spot=24124.65 | 5m 12:50 C=24124.15 | 5m_bars=30 15m_bars=15
+07:20:21 | INFO    | DEAD ZONE — no trades
+07:21:21 | INFO    | ── 12:51:21 | trade=1/3 | active=False | pnl=₹-708 ──
+07:21:25 | INFO    | Spot=24122.75 | 5m 12:50 C=24123.20 | 5m_bars=30 15m_bars=15
+07:21:25 | INFO    | DEAD ZONE — no trades
+07:22:25 | INFO    | ── 12:52:25 | trade=1/3 | active=False | pnl=₹-708 ──
+07:22:30 | INFO    | Spot=24124.75 | 5m 12:50 C=24125.35 | 5m_bars=30 15m_bars=15
+07:22:30 | INFO    | DEAD ZONE — no trades
+07:23:30 | INFO    | ── 12:53:30 | trade=1/3 | active=False | pnl=₹-708 ──
+07:23:34 | INFO    | Spot=24122.10 | 5m 12:50 C=24122.80 | 5m_bars=30 15m_bars=15
+07:23:34 | INFO    | DEAD ZONE — no trades
+07:24:34 | INFO    | ── 12:54:34 | trade=1/3 | active=False | pnl=₹-708 ──
+07:24:39 | INFO    | Spot=24119.75 | 5m 12:50 C=24119.45 | 5m_bars=30 15m_bars=15
+07:24:39 | INFO    | DEAD ZONE — no trades
+07:25:39 | INFO    | ── 12:55:39 | trade=1/3 | active=False | pnl=₹-708 ──
+07:25:43 | INFO    | Spot=24122.90 | 5m 12:55 C=24122.00 | 5m_bars=30 15m_bars=15
+07:25:43 | INFO    | DEAD ZONE — no trades
+07:26:43 | INFO    | ── 12:56:43 | trade=1/3 | active=False | pnl=₹-708 ──
+07:26:47 | INFO    | Spot=24120.65 | 5m 12:55 C=24121.05 | 5m_bars=30 15m_bars=15
+07:26:47 | INFO    | DEAD ZONE — no trades
+07:27:47 | INFO    | ── 12:57:47 | trade=1/3 | active=False | pnl=₹-708 ──
+07:27:52 | INFO    | Spot=24120.75 | 5m 12:55 C=24121.80 | 5m_bars=30 15m_bars=15
+07:27:52 | INFO    | DEAD ZONE — no trades
+07:28:52 | INFO    | ── 12:58:52 | trade=1/3 | active=False | pnl=₹-708 ──
+07:28:56 | INFO    | Spot=24120.85 | 5m 12:55 C=24119.15 | 5m_bars=30 15m_bars=15
+07:28:56 | INFO    | DEAD ZONE — no trades
+07:29:56 | INFO    | ── 12:59:56 | trade=1/3 | active=False | pnl=₹-708 ──
+07:30:01 | INFO    | Spot=24123.45 | 5m 12:55 C=24122.55 | 5m_bars=30 15m_bars=15
+07:30:01 | INFO    | VOLUME GATE: low_vol=2103180<3185697 — no entry
+07:31:01 | INFO    | ── 13:01:01 | trade=1/3 | active=False | pnl=₹-708 ──
+07:31:05 | INFO    | Spot=24120.80 | 5m 13:00 C=24122.70 | 5m_bars=30 15m_bars=16
+07:31:05 | INFO    | VOLUME GATE: low_vol=713810<3053350 — no entry
+07:32:05 | INFO    | ── 13:02:05 | trade=1/3 | active=False | pnl=₹-708 ──
+07:32:10 | INFO    | Spot=24121.65 | 5m 13:00 C=24120.70 | 5m_bars=30 15m_bars=16
+07:32:10 | INFO    | VOLUME GATE: low_vol=1361268<3150469 — no entry
+07:33:10 | INFO    | ── 13:03:10 | trade=1/3 | active=False | pnl=₹-708 ──
+07:33:14 | INFO    | Spot=24120.00 | 5m 13:00 C=24120.55 | 5m_bars=30 15m_bars=16
+07:33:14 | INFO    | VOLUME GATE: low_vol=1996211<3245711 — no entry
+07:34:14 | INFO    | ── 13:04:14 | trade=1/3 | active=False | pnl=₹-708 ──
+07:34:19 | INFO    | Spot=24115.75 | 5m 13:00 C=24116.55 | 5m_bars=30 15m_bars=16
+07:34:19 | INFO    | VOLUME GATE: low_vol=2641670<3342530 — no entry
+07:35:19 | INFO    | ── 13:05:19 | trade=1/3 | active=False | pnl=₹-708 ──
+07:35:23 | INFO    | Spot=24114.00 | 5m 13:05 C=24115.00 | 5m_bars=30 15m_bars=16
+07:35:23 | INFO    | VOLUME GATE: low_vol=109095<3089652 — no entry
+07:36:23 | INFO    | ── 13:06:23 | trade=1/3 | active=False | pnl=₹-708 ──
+07:36:28 | INFO    | Spot=24117.30 | 5m 13:05 C=24116.05 | 5m_bars=30 15m_bars=16
+07:36:28 | INFO    | VOLUME GATE: low_vol=577696<3159942 — no entry
+07:37:28 | INFO    | ── 13:07:28 | trade=1/3 | active=False | pnl=₹-708 ──
+07:37:32 | INFO    | Spot=24119.15 | 5m 13:05 C=24118.45 | 5m_bars=30 15m_bars=16
+07:37:32 | INFO    | VOLUME GATE: low_vol=875236<3204573 — no entry
+07:38:32 | INFO    | ── 13:08:32 | trade=1/3 | active=False | pnl=₹-708 ──
+07:38:36 | INFO    | Spot=24116.45 | 5m 13:05 C=24116.05 | 5m_bars=30 15m_bars=16
+07:38:36 | INFO    | VOLUME GATE: low_vol=1290336<3266838 — no entry
+07:39:36 | INFO    | ── 13:09:36 | trade=1/3 | active=False | pnl=₹-708 ──
+07:39:41 | INFO    | Spot=24111.90 | 5m 13:05 C=24112.65 | 5m_bars=30 15m_bars=16
+07:39:41 | INFO    | VOLUME GATE: low_vol=1887312<3356384 — no entry
+07:40:41 | INFO    | ── 13:10:41 | trade=1/3 | active=False | pnl=₹-708 ──
+07:40:45 | INFO    | Spot=24107.30 | 5m 13:10 C=24107.30 | 5m_bars=30 15m_bars=16
+07:40:45 | INFO    | VOLUME GATE: low_vol=355646<3199670 — no entry
+07:41:45 | INFO    | ── 13:11:45 | trade=1/3 | active=False | pnl=₹-708 ──
+07:41:50 | INFO    | Spot=24108.60 | 5m 13:10 C=24109.50 | 5m_bars=30 15m_bars=16
+07:41:50 | INFO    | VOLUME GATE: low_vol=829560<3270757 — no entry
+07:42:50 | INFO    | ── 13:12:50 | trade=1/3 | active=False | pnl=₹-708 ──
+07:42:54 | INFO    | Spot=24105.95 | 5m 13:10 C=24106.00 | 5m_bars=30 15m_bars=16
+07:42:54 | INFO    | VOLUME GATE: low_vol=1350935<3348963 — no entry
+07:43:54 | INFO    | ── 13:13:54 | trade=1/3 | active=False | pnl=₹-708 ──
+07:43:59 | INFO    | Spot=24108.35 | 5m 13:10 C=24108.35 | 5m_bars=30 15m_bars=16
+07:43:59 | INFO    | VOLUME GATE: low_vol=1816022<3418726 — no entry
+07:44:59 | INFO    | ── 13:14:59 | trade=1/3 | active=False | pnl=₹-708 ──
+07:45:03 | INFO    | Spot=24113.00 | 5m 13:10 C=24112.70 | 5m_bars=30 15m_bars=17
+07:45:03 | INFO    | VOLUME GATE: low_vol=2380590<3503411 — no entry
+07:46:03 | INFO    | ── 13:16:03 | trade=1/3 | active=False | pnl=₹-708 ──
+07:46:08 | INFO    | Spot=24117.15 | 5m 13:15 C=24117.25 | 5m_bars=30 15m_bars=17
+07:46:08 | INFO    | VOLUME GATE: low_vol=400686<3212241 — no entry
+07:47:08 | INFO    | ── 13:17:08 | trade=1/3 | active=False | pnl=₹-708 ──
+07:47:12 | INFO    | Spot=24122.35 | 5m 13:15 C=24121.80 | 5m_bars=30 15m_bars=17
+07:47:12 | INFO    | VOLUME GATE: low_vol=774454<3268307 — no entry
+07:48:12 | INFO    | ── 13:18:12 | trade=1/3 | active=False | pnl=₹-708 ──
+07:48:17 | INFO    | Spot=24125.05 | 5m 13:15 C=24124.45 | 5m_bars=30 15m_bars=17
+07:48:17 | INFO    | VOLUME GATE: low_vol=1255510<3340465 — no entry
+07:49:17 | INFO    | ── 13:19:17 | trade=1/3 | active=False | pnl=₹-708 ──
+07:49:21 | INFO    | Spot=24124.25 | 5m 13:15 C=24124.15 | 5m_bars=30 15m_bars=17
+07:49:21 | INFO    | VOLUME GATE: low_vol=1627701<3396294 — no entry
+07:50:21 | INFO    | ── 13:20:21 | trade=1/3 | active=False | pnl=₹-708 ──
+07:50:26 | INFO    | Spot=24121.35 | 5m 13:20 C=24120.60 | 5m_bars=30 15m_bars=17
+07:50:26 | INFO    | VOLUME GATE: low_vol=134048<3118988 — no entry
+07:51:26 | INFO    | ── 13:21:26 | trade=1/3 | active=False | pnl=₹-708 ──
+07:51:30 | INFO    | Spot=24125.15 | 5m 13:20 C=24123.95 | 5m_bars=30 15m_bars=17
+07:51:30 | INFO    | VOLUME GATE: low_vol=573122<3184849 — no entry
+07:52:30 | INFO    | ── 13:22:30 | trade=1/3 | active=False | pnl=₹-708 ──
+07:52:34 | INFO    | Spot=24117.50 | 5m 13:20 C=24117.45 | 5m_bars=30 15m_bars=17
+07:52:34 | INFO    | VOLUME GATE: low_vol=1009684<3250333 — no entry
+07:53:34 | INFO    | ── 13:23:34 | trade=1/3 | active=False | pnl=₹-708 ──
+07:53:39 | INFO    | Spot=24119.35 | 5m 13:20 C=24119.20 | 5m_bars=30 15m_bars=17
+07:53:39 | INFO    | VOLUME GATE: low_vol=1450757<3316494 — no entry
+07:54:39 | INFO    | ── 13:24:39 | trade=1/3 | active=False | pnl=₹-708 ──
+07:54:43 | INFO    | Spot=24120.10 | 5m 13:20 C=24120.55 | 5m_bars=30 15m_bars=17
+07:54:43 | INFO    | VOLUME GATE: low_vol=1756182<3362308 — no entry
+07:55:43 | INFO    | ── 13:25:43 | trade=1/3 | active=False | pnl=₹-708 ──
+07:55:48 | INFO    | Spot=24123.20 | 5m 13:25 C=24123.40 | 5m_bars=30 15m_bars=17
+07:55:48 | INFO    | VOLUME GATE: low_vol=221122<3141452 — no entry
+07:56:48 | INFO    | ── 13:26:48 | trade=1/3 | active=False | pnl=₹-708 ──
+07:56:52 | INFO    | Spot=24123.10 | 5m 13:25 C=24123.35 | 5m_bars=30 15m_bars=17
+07:56:52 | INFO    | VOLUME GATE: low_vol=605946<3199175 — no entry
+07:57:52 | INFO    | ── 13:27:52 | trade=1/3 | active=False | pnl=₹-708 ──
+07:57:57 | INFO    | Spot=24120.40 | 5m 13:25 C=24120.20 | 5m_bars=30 15m_bars=17
+07:57:57 | INFO    | VOLUME GATE: low_vol=1032722<3263192 — no entry
+07:58:57 | INFO    | ── 13:28:57 | trade=1/3 | active=False | pnl=₹-708 ──
+07:59:01 | INFO    | Spot=24119.35 | 5m 13:25 C=24119.10 | 5m_bars=30 15m_bars=17
+07:59:01 | INFO    | VOLUME GATE: low_vol=1417150<3320856 — no entry
+08:00:01 | INFO    | ── 13:30:01 | trade=1/3 | active=False | pnl=₹-708 ──
+08:00:07 | INFO    | Spot=24118.35 | 5m 13:30 C=24119.95 | 5m_bars=30 15m_bars=18
+08:00:07 | INFO    | VOLUME GATE: low_vol=18647<3010190 — no entry
+08:01:07 | INFO    | ── 13:31:07 | trade=1/3 | active=False | pnl=₹-708 ──
+08:01:11 | INFO    | Spot=24119.90 | 5m 13:30 C=24117.80 | 5m_bars=30 15m_bars=18
+08:01:11 | INFO    | VOLUME GATE: low_vol=544516<3089070 — no entry
+08:02:11 | INFO    | ── 13:32:11 | trade=1/3 | active=False | pnl=₹-708 ──
+08:02:15 | INFO    | Spot=24124.35 | 5m 13:30 C=24123.40 | 5m_bars=30 15m_bars=18
+08:02:15 | INFO    | VOLUME GATE: low_vol=988091<3155606 — no entry
+08:03:15 | INFO    | ── 13:33:15 | trade=1/3 | active=False | pnl=₹-708 ──
+08:03:20 | INFO    | Spot=24120.75 | 5m 13:30 C=24121.75 | 5m_bars=30 15m_bars=18
+08:03:20 | INFO    | VOLUME GATE: low_vol=1504097<3233007 — no entry
+08:04:20 | INFO    | ── 13:34:20 | trade=1/3 | active=False | pnl=₹-708 ──
+08:04:24 | INFO    | Spot=24120.80 | 5m 13:30 C=24120.80 | 5m_bars=30 15m_bars=18
+08:04:24 | INFO    | VOLUME GATE: low_vol=1983202<3304873 — no entry
+08:05:24 | INFO    | ── 13:35:24 | trade=1/3 | active=False | pnl=₹-708 ──
+08:05:29 | INFO    | Spot=24120.85 | 5m 13:35 C=24120.30 | 5m_bars=30 15m_bars=18
+08:05:29 | INFO    | VOLUME GATE: low_vol=232754<3042777 — no entry
+08:06:29 | INFO    | ── 13:36:29 | trade=1/3 | active=False | pnl=₹-708 ──
+08:06:33 | INFO    | Spot=24122.45 | 5m 13:35 C=24122.10 | 5m_bars=30 15m_bars=18
+08:06:33 | INFO    | VOLUME GATE: low_vol=881103<3140029 — no entry
+08:07:33 | INFO    | ── 13:37:33 | trade=1/3 | active=False | pnl=₹-708 ──
+08:07:38 | INFO    | Spot=24121.65 | 5m 13:35 C=24121.25 | 5m_bars=30 15m_bars=18
+08:07:38 | INFO    | VOLUME GATE: low_vol=1389844<3216340 — no entry
+08:08:38 | INFO    | ── 13:38:38 | trade=1/3 | active=False | pnl=₹-708 ──
+08:08:42 | INFO    | Spot=24120.35 | 5m 13:35 C=24118.25 | 5m_bars=30 15m_bars=18
+08:08:42 | INFO    | VOLUME GATE: low_vol=1878047<3289570 — no entry
+08:09:42 | INFO    | ── 13:39:42 | trade=1/3 | active=False | pnl=₹-708 ──
+08:09:46 | INFO    | Spot=24117.15 | 5m 13:35 C=24115.80 | 5m_bars=30 15m_bars=18
+08:09:46 | INFO    | VOLUME GATE: low_vol=2351754<3360627 — no entry
+08:10:46 | INFO    | ── 13:40:46 | trade=1/3 | active=False | pnl=₹-708 ──
+08:10:51 | INFO    | Spot=24104.05 | 5m 13:40 C=24104.40 | 5m_bars=30 15m_bars=18
+08:10:51 | INFO    | VOLUME GATE: low_vol=539256<3083808 — no entry
+08:11:51 | INFO    | ── 13:41:51 | trade=1/3 | active=False | pnl=₹-708 ──
+08:11:55 | INFO    | Spot=24104.20 | 5m 13:40 C=24104.35 | 5m_bars=30 15m_bars=18
+08:11:55 | INFO    | VOLUME GATE: low_vol=1953372<3295925 — no entry
+08:12:55 | INFO    | ── 13:42:55 | trade=1/3 | active=False | pnl=₹-708 ──
+08:13:00 | INFO    | Spot=24112.65 | 5m 13:40 C=24105.45 | 5m_bars=30 15m_bars=18
+08:13:00 | INFO    | VOLUME GATE: low_vol=2496148<3377342 — no entry
+08:14:00 | INFO    | ── 13:44:00 | trade=1/3 | active=False | pnl=₹-708 ──
+08:14:04 | INFO    | Spot=24120.50 | 5m 13:40 C=24120.70 | 5m_bars=30 15m_bars=18
+08:14:04 | INFO    | SCORE → bull=0 bear=1 | HTF_bear | vol=3610694/thr=3544524✓
+08:15:04 | INFO    | ── 13:45:04 | trade=1/3 | active=False | pnl=₹-708 ──
+08:15:09 | INFO    | Spot=24118.40 | 5m 13:45 C=24119.65 | 5m_bars=30 15m_bars=19
+08:15:09 | INFO    | VOLUME GATE: low_vol=23278<3290380 — no entry
+08:16:09 | INFO    | ── 13:46:09 | trade=1/3 | active=False | pnl=₹-708 ──
+08:16:13 | INFO    | Spot=24122.05 | 5m 13:45 C=24120.65 | 5m_bars=30 15m_bars=19
+08:16:13 | INFO    | VOLUME GATE: low_vol=542756<3368302 — no entry
+08:17:13 | INFO    | ── 13:47:13 | trade=1/3 | active=False | pnl=₹-708 ──
+08:17:18 | INFO    | Spot=24121.80 | 5m 13:45 C=24122.00 | 5m_bars=30 15m_bars=19
+08:17:18 | INFO    | VOLUME GATE: low_vol=1036399<3442348 — no entry
+08:27:07 | INFO    | ============================================================
+08:27:07 | INFO    | NON-EXPIRY SCALPER v1 — 5m entries | TP=+30% SL=-15% | MaxTrades=3
+08:27:07 | INFO    | Theta kill 15:00 | Dead zone 12:00–13:00 | ORB ends 09:45
+08:27:07 | INFO    | ============================================================
+08:27:08 | INFO    | ── 13:57:08 | trade=0/3 | active=False | pnl=₹0 ──
+08:27:12 | INFO    | Spot=24131.85 | 5m 13:55 C=24131.20 | 5m_bars=30 15m_bars=19
+08:27:12 | INFO    | VOLUME GATE: low_vol=2568483<3670958 — no entry
+08:28:19 | INFO    | ============================================================
+08:28:19 | INFO    | NON-EXPIRY SCALPER v1 — 5m entries | TP=+30% SL=-15% | MaxTrades=3
+08:28:19 | INFO    | Theta kill 15:00 | Dead zone 12:00–13:00 | ORB ends 09:45
+08:28:19 | INFO    | ============================================================
+08:28:19 | INFO    | ── 13:58:19 | trade=0/3 | active=False | pnl=₹0 ──
+08:28:23 | INFO    | Spot=24133.65 | 5m 13:55 C=24133.90 | 5m_bars=30 15m_bars=19
+08:28:23 | INFO    | VOLUME GATE: low_vol=3189643<3764132 — no entry
+08:29:23 | INFO    | ── 13:59:23 | trade=0/3 | active=False | pnl=₹0 ──
+08:29:28 | INFO    | Spot=24126.40 | 5m 13:55 C=24126.00 | 5m_bars=30 15m_bars=19
+08:29:28 | INFO    | VOLUME GATE: low_vol=3775594<3852025 — no entry
+08:30:28 | INFO    | ── 14:00:28 | trade=0/3 | active=False | pnl=₹0 ──
+08:30:32 | INFO    | Spot=24125.40 | 5m 14:00 C=24126.45 | 5m_bars=30 15m_bars=20
+08:30:32 | INFO    | VOLUME GATE: low_vol=200146<3618829 — no entry
+08:31:32 | INFO    | ── 14:01:32 | trade=0/3 | active=False | pnl=₹0 ──
+08:31:36 | INFO    | Spot=24124.50 | 5m 14:00 C=24125.70 | 5m_bars=30 15m_bars=20
+08:31:36 | INFO    | VOLUME GATE: low_vol=1066539<3748788 — no entry
+08:32:36 | INFO    | ── 14:02:36 | trade=0/3 | active=False | pnl=₹0 ──
+08:32:41 | INFO    | Spot=24127.70 | 5m 14:00 C=24127.55 | 5m_bars=30 15m_bars=20
+08:32:41 | INFO    | VOLUME GATE: low_vol=1460189<3807835 — no entry
+08:33:41 | INFO    | ── 14:03:41 | trade=0/3 | active=False | pnl=₹0 ──
+08:33:45 | INFO    | Spot=24127.20 | 5m 14:00 C=24126.30 | 5m_bars=30 15m_bars=20
+08:33:45 | INFO    | VOLUME GATE: low_vol=1990755<3887420 — no entry
+08:34:45 | INFO    | ── 14:04:45 | trade=0/3 | active=False | pnl=₹0 ──
+08:34:50 | INFO    | Spot=24126.05 | 5m 14:00 C=24126.55 | 5m_bars=30 15m_bars=20
+08:34:50 | INFO    | VOLUME GATE: low_vol=2439556<3954740 — no entry
+08:35:50 | INFO    | ── 14:05:50 | trade=0/3 | active=False | pnl=₹0 ──
+08:35:54 | INFO    | Spot=24130.20 | 5m 14:05 C=24131.05 | 5m_bars=30 15m_bars=20
+08:35:54 | INFO    | VOLUME GATE: low_vol=438769<3746649 — no entry
+08:36:54 | INFO    | ── 14:06:54 | trade=0/3 | active=False | pnl=₹0 ──
+08:36:59 | INFO    | Spot=24125.55 | 5m 14:05 C=24126.00 | 5m_bars=30 15m_bars=20
+08:36:59 | INFO    | VOLUME GATE: low_vol=840706<3806939 — no entry
+08:37:59 | INFO    | ── 14:07:59 | trade=0/3 | active=False | pnl=₹0 ──
+08:38:03 | INFO    | Spot=24125.20 | 5m 14:05 C=24125.85 | 5m_bars=30 15m_bars=20
+08:38:03 | INFO    | VOLUME GATE: low_vol=1334328<3880982 — no entry
+08:39:03 | INFO    | ── 14:09:03 | trade=0/3 | active=False | pnl=₹0 ──
+08:39:07 | INFO    | Spot=24123.70 | 5m 14:05 C=24124.05 | 5m_bars=30 15m_bars=20
+08:39:07 | INFO    | VOLUME GATE: low_vol=1759328<3944732 — no entry
+08:40:07 | INFO    | ── 14:10:07 | trade=0/3 | active=False | pnl=₹0 ──
+08:40:12 | INFO    | Spot=24121.05 | 5m 14:10 C=24120.15 | 5m_bars=30 15m_bars=20
+08:40:12 | INFO    | VOLUME GATE: low_vol=51391<3741860 — no entry
+08:41:12 | INFO    | ── 14:11:12 | trade=0/3 | active=False | pnl=₹0 ──
+08:41:16 | INFO    | Spot=24130.35 | 5m 14:10 C=24128.45 | 5m_bars=30 15m_bars=20
+08:41:16 | INFO    | VOLUME GATE: low_vol=741738<3845412 — no entry
+08:42:16 | INFO    | ── 14:12:16 | trade=0/3 | active=False | pnl=₹0 ──
+08:42:21 | INFO    | Spot=24126.80 | 5m 14:10 C=24128.00 | 5m_bars=30 15m_bars=20
+08:42:21 | INFO    | VOLUME GATE: low_vol=1114076<3901263 — no entry
+08:43:21 | INFO    | ── 14:13:21 | trade=0/3 | active=False | pnl=₹0 ──
+08:43:25 | INFO    | Spot=24124.85 | 5m 14:10 C=24125.40 | 5m_bars=30 15m_bars=20
+08:43:25 | INFO    | VOLUME GATE: low_vol=1807564<4005286 — no entry
+08:44:25 | INFO    | ── 14:14:25 | trade=0/3 | active=False | pnl=₹0 ──
+08:44:30 | INFO    | Spot=24122.85 | 5m 14:10 C=24122.40 | 5m_bars=30 15m_bars=20
+08:44:30 | INFO    | VOLUME GATE: low_vol=2225018<4067904 — no entry
+08:45:30 | INFO    | ── 14:15:30 | trade=0/3 | active=False | pnl=₹0 ──
+08:45:34 | INFO    | Spot=24121.50 | 5m 14:15 C=24121.90 | 5m_bars=30 15m_bars=20
+08:45:34 | INFO    | VOLUME GATE: low_vol=207239<3865036 — no entry
+08:46:34 | INFO    | ── 14:16:34 | trade=0/3 | active=False | pnl=₹0 ──
+08:46:39 | INFO    | Spot=24113.75 | 5m 14:15 C=24114.95 | 5m_bars=30 15m_bars=20
+08:46:39 | INFO    | VOLUME GATE: low_vol=741401<3945160 — no entry
+08:47:39 | INFO    | ── 14:17:39 | trade=0/3 | active=False | pnl=₹0 ──
+08:47:43 | INFO    | Spot=24117.10 | 5m 14:15 C=24116.50 | 5m_bars=30 15m_bars=20
+08:47:43 | INFO    | VOLUME GATE: low_vol=1169146<4009322 — no entry
+08:48:43 | INFO    | ── 14:18:43 | trade=0/3 | active=False | pnl=₹0 ──
+08:48:47 | INFO    | Spot=24121.30 | 5m 14:15 C=24124.15 | 5m_bars=30 15m_bars=20
+08:48:47 | INFO    | VOLUME GATE: low_vol=1605089<4074714 — no entry
+08:49:47 | INFO    | ── 14:19:47 | trade=0/3 | active=False | pnl=₹0 ──
+08:49:52 | INFO    | Spot=24123.45 | 5m 14:15 C=24122.60 | 5m_bars=30 15m_bars=20
+08:49:52 | INFO    | VOLUME GATE: low_vol=2200960<4164094 — no entry
+08:50:52 | INFO    | ── 14:20:52 | trade=0/3 | active=False | pnl=₹0 ──
+08:50:56 | INFO    | Spot=24124.75 | 5m 14:20 C=24124.80 | 5m_bars=30 15m_bars=20
+08:50:56 | INFO    | VOLUME GATE: low_vol=321771<3881566 — no entry
+08:51:56 | INFO    | ── 14:21:56 | trade=0/3 | active=False | pnl=₹0 ──
+08:52:01 | INFO    | Spot=24121.85 | 5m 14:20 C=24122.60 | 5m_bars=30 15m_bars=20
+08:52:01 | INFO    | VOLUME GATE: low_vol=696375<3937757 — no entry
+08:53:01 | INFO    | ── 14:23:01 | trade=0/3 | active=False | pnl=₹0 ──
+08:53:05 | INFO    | Spot=24122.65 | 5m 14:20 C=24123.50 | 5m_bars=30 15m_bars=20
+08:53:05 | INFO    | VOLUME GATE: low_vol=1160207<4007332 — no entry
+08:54:05 | INFO    | ── 14:24:05 | trade=0/3 | active=False | pnl=₹0 ──
+08:54:10 | INFO    | Spot=24124.40 | 5m 14:20 C=24123.45 | 5m_bars=30 15m_bars=20
+08:54:10 | INFO    | VOLUME GATE: low_vol=1521124<4061469 — no entry
+08:55:10 | INFO    | ── 14:25:10 | trade=0/3 | active=False | pnl=₹0 ──
+08:55:14 | INFO    | Spot=24124.00 | 5m 14:25 C=24124.45 | 5m_bars=30 15m_bars=20
+08:55:14 | INFO    | VOLUME GATE: low_vol=90861<3754661 — no entry
+08:56:14 | INFO    | ── 14:26:14 | trade=0/3 | active=False | pnl=₹0 ──
+08:56:19 | INFO    | Spot=24127.30 | 5m 14:25 C=24127.05 | 5m_bars=30 15m_bars=20
+08:56:19 | INFO    | VOLUME GATE: low_vol=489495<3814456 — no entry
+08:57:19 | INFO    | ── 14:27:19 | trade=0/3 | active=False | pnl=₹0 ──
+08:57:23 | INFO    | Spot=24129.80 | 5m 14:25 C=24130.50 | 5m_bars=30 15m_bars=20
+08:57:23 | INFO    | VOLUME GATE: low_vol=868826<3871356 — no entry
+08:58:23 | INFO    | ── 14:28:23 | trade=0/3 | active=False | pnl=₹0 ──
+08:58:28 | INFO    | Spot=24135.05 | 5m 14:25 C=24135.55 | 5m_bars=30 15m_bars=20
+08:58:28 | INFO    | VOLUME GATE: low_vol=1980676<4038134 — no entry
+08:59:28 | INFO    | ── 14:29:28 | trade=0/3 | active=False | pnl=₹0 ──
+08:59:32 | INFO    | Spot=24134.95 | 5m 14:25 C=24134.75 | 5m_bars=30 15m_bars=20
+08:59:32 | INFO    | VOLUME GATE: low_vol=2965246<4185819 — no entry
+09:00:32 | INFO    | ── 14:30:32 | trade=0/3 | active=False | pnl=₹0 ──
+09:00:36 | INFO    | Spot=24140.60 | 5m 14:30 C=24140.85 | 5m_bars=30 15m_bars=20
+09:00:36 | INFO    | VOLUME GATE: low_vol=656781<3727903 — no entry
+09:01:36 | INFO    | ── 14:31:36 | trade=0/3 | active=False | pnl=₹0 ──
+09:01:41 | INFO    | Spot=24134.60 | 5m 14:30 C=24135.25 | 5m_bars=30 15m_bars=20
+09:01:41 | INFO    | VOLUME GATE: low_vol=1217452<3812004 — no entry
+09:02:41 | INFO    | ── 14:32:41 | trade=0/3 | active=False | pnl=₹0 ──
+14:32:50 | INFO    | ============================================================
+14:32:50 | INFO    | NON-EXPIRY SCALPER v1 — 5m entries | TP=+30% SL=-15% | MaxTrades=3
+14:32:50 | INFO    | Theta kill 15:00 | Dead zone 12:00–13:00 | ORB ends 09:45
+14:32:50 | INFO    | ============================================================
+14:32:50 | INFO    | ── 14:32:50 | trade=0/3 | active=False | pnl=₹0 ──
+14:32:54 | INFO    | Spot=24132.90 | 5m 14:30 C=24133.75 | 5m_bars=30 15m_bars=20
+14:32:54 | INFO    | VOLUME GATE: low_vol=1823214<3902868 — no entry
+14:33:54 | INFO    | ── 14:33:54 | trade=0/3 | active=False | pnl=₹0 ──
+14:33:59 | INFO    | Spot=24128.95 | 5m 14:30 C=24129.60 | 5m_bars=30 15m_bars=20
+14:33:59 | INFO    | VOLUME GATE: low_vol=2475391<4000695 — no entry
+14:34:59 | INFO    | ── 14:34:59 | trade=0/3 | active=False | pnl=₹0 ──
+14:35:03 | INFO    | Spot=24131.95 | 5m 14:30 C=24131.55 | 5m_bars=30 15m_bars=20
+14:35:03 | INFO    | VOLUME GATE: low_vol=3227520<4113514 — no entry
+14:36:03 | INFO    | ── 14:36:03 | trade=0/3 | active=False | pnl=₹0 ──
+14:36:08 | INFO    | Spot=24136.25 | 5m 14:35 C=24137.15 | 5m_bars=30 15m_bars=20
+14:36:08 | INFO    | VOLUME GATE: low_vol=642257<3830127 — no entry
+14:37:08 | INFO    | ── 14:37:08 | trade=0/3 | active=False | pnl=₹0 ──
+14:37:12 | INFO    | Spot=24136.85 | 5m 14:35 C=24136.70 | 5m_bars=30 15m_bars=20
+14:37:12 | INFO    | VOLUME GATE: low_vol=1481580<3956026 — no entry
+14:38:12 | INFO    | ── 14:38:12 | trade=0/3 | active=False | pnl=₹0 ──
+14:38:16 | INFO    | Spot=24140.30 | 5m 14:35 C=24138.85 | 5m_bars=30 15m_bars=20
+14:38:16 | INFO    | VOLUME GATE: low_vol=2447502<4100914 — no entry
+14:39:16 | INFO    | ── 14:39:16 | trade=0/3 | active=False | pnl=₹0 ──
+14:39:21 | INFO    | Spot=24138.30 | 5m 14:35 C=24138.90 | 5m_bars=30 15m_bars=20
+14:39:21 | INFO    | VOLUME GATE: low_vol=3274516<4224966 — no entry
+14:40:21 | INFO    | ── 14:40:21 | trade=0/3 | active=False | pnl=₹0 ──
+14:40:25 | INFO    | Spot=24136.10 | 5m 14:40 C=24135.55 | 5m_bars=30 15m_bars=20
+14:40:25 | INFO    | VOLUME GATE: low_vol=168007<3929373 — no entry
+14:41:25 | INFO    | ── 14:41:25 | trade=0/3 | active=False | pnl=₹0 ──
+14:41:30 | INFO    | Spot=24137.10 | 5m 14:40 C=24136.15 | 5m_bars=30 15m_bars=20
+14:41:30 | INFO    | VOLUME GATE: low_vol=775200<4020452 — no entry
+14:42:30 | INFO    | ── 14:42:30 | trade=0/3 | active=False | pnl=₹0 ──
+14:42:34 | INFO    | Spot=24136.95 | 5m 14:40 C=24138.65 | 5m_bars=30 15m_bars=20
+14:42:34 | INFO    | VOLUME GATE: low_vol=1361281<4108365 — no entry
+14:43:34 | INFO    | ── 14:43:34 | trade=0/3 | active=False | pnl=₹0 ──
+14:43:39 | INFO    | Spot=24131.80 | 5m 14:40 C=24133.55 | 5m_bars=30 15m_bars=20
+14:43:39 | INFO    | VOLUME GATE: low_vol=1929547<4193604 — no entry
+14:44:39 | INFO    | ── 14:44:39 | trade=0/3 | active=False | pnl=₹0 ──
+14:44:43 | INFO    | Spot=24133.95 | 5m 14:40 C=24133.90 | 5m_bars=30 15m_bars=20
+14:44:43 | INFO    | VOLUME GATE: low_vol=2504735<4279883 — no entry
+14:45:43 | INFO    | ── 14:45:43 | trade=0/3 | active=False | pnl=₹0 ──
+14:45:48 | INFO    | Spot=24137.00 | 5m 14:45 C=24135.50 | 5m_bars=30 15m_bars=20
+14:45:48 | INFO    | VOLUME GATE: low_vol=385000<3702411 — no entry
+14:46:48 | INFO    | ── 14:46:48 | trade=0/3 | active=False | pnl=₹0 ──
+14:46:52 | INFO    | Spot=24142.15 | 5m 14:45 C=24140.70 | 5m_bars=30 15m_bars=20
+14:46:52 | INFO    | VOLUME GATE: low_vol=935615<3785004 — no entry
+14:47:52 | INFO    | ── 14:47:52 | trade=0/3 | active=False | pnl=₹0 ──
+14:47:57 | INFO    | Spot=24141.75 | 5m 14:45 C=24143.70 | 5m_bars=30 15m_bars=20
+14:47:57 | INFO    | VOLUME GATE: low_vol=1557075<3878223 — no entry
+14:48:57 | INFO    | ── 14:48:57 | trade=0/3 | active=False | pnl=₹0 ──
+14:49:01 | INFO    | Spot=24138.40 | 5m 14:45 C=24139.85 | 5m_bars=30 15m_bars=20
+14:49:01 | INFO    | VOLUME GATE: low_vol=2949075<4087023 — no entry
+14:50:01 | INFO    | ── 14:50:01 | trade=0/3 | active=False | pnl=₹0 ──
+14:50:05 | INFO    | Spot=24142.65 | 5m 14:50 C=24142.05 | 5m_bars=30 15m_bars=20
+14:50:05 | INFO    | VOLUME GATE: low_vol=16701<3792162 — no entry
+14:51:05 | INFO    | ── 14:51:05 | trade=0/3 | active=False | pnl=₹0 ──
+14:51:10 | INFO    | Spot=24143.05 | 5m 14:50 C=24141.90 | 5m_bars=30 15m_bars=20
+14:51:10 | INFO    | VOLUME GATE: low_vol=569907<3875462 — no entry
+14:52:10 | INFO    | ── 14:52:10 | trade=0/3 | active=False | pnl=₹0 ──
+14:52:14 | INFO    | Spot=24142.60 | 5m 14:50 C=24141.25 | 5m_bars=30 15m_bars=20
+14:52:14 | INFO    | VOLUME GATE: low_vol=1179953<3966969 — no entry
+14:53:14 | INFO    | ── 14:53:14 | trade=0/3 | active=False | pnl=₹0 ──
+14:53:19 | INFO    | Spot=24136.00 | 5m 14:50 C=24135.45 | 5m_bars=30 15m_bars=20
+14:53:19 | INFO    | VOLUME GATE: low_vol=1804125<4060595 — no entry
+14:54:19 | INFO    | ── 14:54:19 | trade=0/3 | active=False | pnl=₹0 ──
+14:54:23 | INFO    | Spot=24134.75 | 5m 14:50 C=24136.95 | 5m_bars=30 15m_bars=20
+14:54:23 | INFO    | VOLUME GATE: low_vol=2314863<4137206 — no entry
+14:55:23 | INFO    | ── 14:55:23 | trade=0/3 | active=False | pnl=₹0 ──
+14:55:28 | INFO    | Spot=24133.55 | 5m 14:55 C=24134.15 | 5m_bars=30 15m_bars=20
+14:55:28 | INFO    | VOLUME GATE: low_vol=209456<3878238 — no entry
+14:56:28 | INFO    | ── 14:56:28 | trade=0/3 | active=False | pnl=₹0 ──
+14:56:32 | INFO    | Spot=24132.40 | 5m 14:55 C=24131.60 | 5m_bars=30 15m_bars=20
+14:56:32 | INFO    | VOLUME GATE: low_vol=843779<3973386 — no entry
+14:57:32 | INFO    | ── 14:57:32 | trade=0/3 | active=False | pnl=₹0 ──
+14:57:37 | INFO    | Spot=24133.10 | 5m 14:55 C=24132.75 | 5m_bars=30 15m_bars=20
+14:57:37 | INFO    | VOLUME GATE: low_vol=1494090<4070933 — no entry
+14:58:37 | INFO    | ── 14:58:37 | trade=0/3 | active=False | pnl=₹0 ──
+14:58:41 | INFO    | Spot=24133.15 | 5m 14:55 C=24133.70 | 5m_bars=30 15m_bars=20
+14:58:41 | INFO    | VOLUME GATE: low_vol=2011555<4148552 — no entry
+14:59:41 | INFO    | ── 14:59:41 | trade=0/3 | active=False | pnl=₹0 ──
+14:59:46 | INFO    | Spot=24134.75 | 5m 14:55 C=24133.25 | 5m_bars=30 15m_bars=20
+14:59:46 | INFO    | VOLUME GATE: low_vol=4127626<4465963 — no entry
+15:30:46 | INFO    | Market closed. Done.
+15:30:46 | INFO    | Final PnL=₹0 trades=0
+15:30:46 | INFO    | === DONE ===
+22:06:32 | INFO    | ============================================================
+22:06:32 | INFO    | NON-EXPIRY SCALPER v1 — 5m entries | TP=+30% SL=-15% | MaxTrades=3
+22:06:32 | INFO    | Theta kill 15:00 | Dead zone 12:00–13:00 | ORB ends 09:45
+22:06:32 | INFO    | ============================================================
+22:06:32 | INFO    | Market closed. Done.
+22:06:32 | INFO    | Final PnL=₹0 trades=0
+22:06:32 | INFO    | === DONE ===
