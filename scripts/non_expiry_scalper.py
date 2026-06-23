@@ -58,6 +58,8 @@ TP_PCT       = 0.30
 SL_PCT       = 0.15
 MAX_TRADES         = 3
 EXCEPTIONAL_SCORE  = 6  # bull or bear score ≥ this → allow 4th trade
+DAILY_TARGET       = 2000      # ₹ target per day
+CAPITAL_TARGET     = 1000      # ₹ target per trade — exit when unrealised PnL ≥ this
 MAX_LOTS     = 1          # maximum lots per trade (1 lot = lot_size contracts)
 THETA_KILL   = (15, 0)    # 15:00 IST — non-expiry, can hold longer than expiry day
 DEAD_START   = (12, 0)
@@ -403,7 +405,7 @@ def restore_state_from_broker() -> None:
                 "sl": round(entry * (1 - SL_PCT), 2),
                 "qty": qty, "trades": 1,
                 "peak_ltp": entry,
-                "capital_profit_target": round(get_balance() * 0.07, 2),
+                "capital_profit_target": float(CAPITAL_TARGET),
                 "last_momentum_score": 0,
                 "monitor_tick": 0,
             })
@@ -427,6 +429,8 @@ def run() -> None:
     log.info("=" * 60)
     log.info("NON-EXPIRY SCALPER v1 — 5m entries | TP=+%.0f%% SL=-%.0f%% | MaxTrades=%d (+1 exceptional ≥%d)",
              TP_PCT * 100, SL_PCT * 100, MAX_TRADES, EXCEPTIONAL_SCORE)
+    log.info("Target ₹%d/day | Capital target ₹%d/trade",
+             DAILY_TARGET, CAPITAL_TARGET)
     log.info("Theta kill %02d:%02d | Dead zone %02d:%02d–%02d:%02d | ORB ends %02d:%02d",
              *THETA_KILL, *DEAD_START, *DEAD_END, *ORB_END)
     log.info("=" * 60)
@@ -692,7 +696,7 @@ def run() -> None:
                 "sl": round(ltp * (1 - SL_PCT), 2),
                 "qty": lot, "last_dir": direction,
                 "peak_ltp": ltp,
-                "capital_profit_target": round(balance * 0.07, 2),
+                "capital_profit_target": float(CAPITAL_TARGET),
                 "last_momentum_score": max(bull, bear),
                 "monitor_tick": 0,
             })

@@ -55,6 +55,8 @@ TP_PCT       = 0.60
 SL_PCT       = 0.20
 MAX_TRADES         = 4
 EXCEPTIONAL_SCORE  = 6  # bull or bear score ≥ this → allow 5th trade
+DAILY_TARGET       = 2000      # ₹ target per day — triggers lockdown
+CAPITAL_TARGET     = 1000      # ₹ target per trade — exit when unrealised PnL ≥ this
 THETA_KILL   = (14, 15)   # 14:15 IST — earlier on expiry day
 DEAD_START   = (12, 0)
 DEAD_END     = (13, 0)
@@ -86,13 +88,13 @@ state = {
     "symbol": None, "sid": None,
     "entry": None, "tp": None, "sl": None, "qty": None,
     "peak_ltp": None,            # highest LTP seen since entry — for trailing SL
-    "capital_profit_target": None,  # rupee PnL = 10% of balance at entry
+    "capital_profit_target": None,  # rupee PnL per trade — exit at this level (see CAPITAL_TARGET)
     "last_momentum_score": 0,    # cached bull/bear score — refreshed every 3rd monitor tick
     "monitor_tick": 0,           # counts monitor ticks to throttle candle fetches
     "or_high": None, "or_low": None, "or_set": False,
     "last_dir": None, "daily_pnl": 0.0,
     "cooldown_until": 0,
-    "lockdown_mode": False,     # True once daily_pnl >= 1000 — only quality trades after
+    "lockdown_mode": False,     # True once daily_pnl >= DAILY_TARGET — only quality trades after
     "lockdown_trades": 0,       # count of trades taken in lockdown mode (max 2)
     "daily_peak_pnl": 0.0,      # highest daily_pnl reached — used to decide if we're still above target
 }
@@ -377,7 +379,7 @@ def restore_state_from_broker() -> None:
                 "sl": round(entry * (1 - SL_PCT), 2),
                 "qty": qty, "trades": 1,
                 "peak_ltp": entry,
-                "capital_profit_target": 1000.0,
+                "capital_profit_target": float(CAPITAL_TARGET),
                 "last_momentum_score": 0,
                 "monitor_tick": 0,
             })
@@ -402,6 +404,8 @@ def run():
     log.info("=" * 60)
     log.info("EXPIRY SCALPER v2 — 1m entries | TP=+%.0f%% SL=-%.0f%% | MaxTrades=%d (+1 exceptional ≥%d)",
              TP_PCT * 100, SL_PCT * 100, MAX_TRADES, EXCEPTIONAL_SCORE)
+    log.info("Target ₹%d/day | Capital target ₹%d/trade | Lockdown at ₹%d",
+             DAILY_TARGET, CAPITAL_TARGET, DAILY_TARGET)
     log.info("Theta kill %02d:%02d | Dead zone %02d:%02d–%02d:%02d",
              *THETA_KILL, *DEAD_START, *DEAD_END)
     log.info("=" * 60)
@@ -425,7 +429,7 @@ def run():
                         pnl = (ltp - state["entry"]) * state["qty"]
                         state["daily_pnl"] += pnl
                         state["daily_peak_pnl"] = max(state["daily_peak_pnl"], state["daily_pnl"])
-                        if state["daily_pnl"] >= 1000 and not state["lockdown_mode"]:
+                        if state["daily_pnl"] >= DAILY_TARGET and not state["lockdown_mode"]:
                             state["lockdown_mode"] = True
                             log.info("LOCKDOWN — daily PnL=₹%.0f. Only quality signals, max 2 more trades.",
                                      state["daily_pnl"])
@@ -495,7 +499,7 @@ def run():
                     if oid:
                         state["daily_pnl"] += pnl_rs
                         state["daily_peak_pnl"] = max(state["daily_peak_pnl"], state["daily_pnl"])
-                        if state["daily_pnl"] >= 1000 and not state["lockdown_mode"]:
+                        if state["daily_pnl"] >= DAILY_TARGET and not state["lockdown_mode"]:
                             state["lockdown_mode"] = True
                             log.info("LOCKDOWN — daily PnL=₹%.0f. Only quality signals, max 2 more trades.",
                                      state["daily_pnl"])
@@ -518,7 +522,7 @@ def run():
                         pnl = (ltp - state["entry"]) * state["qty"]
                         state["daily_pnl"] += pnl
                         state["daily_peak_pnl"] = max(state["daily_peak_pnl"], state["daily_pnl"])
-                        if state["daily_pnl"] >= 1000 and not state["lockdown_mode"]:
+                        if state["daily_pnl"] >= DAILY_TARGET and not state["lockdown_mode"]:
                             state["lockdown_mode"] = True
                             log.info("LOCKDOWN — daily PnL=₹%.0f. Only quality signals, max 2 more trades.",
                                      state["daily_pnl"])
@@ -604,7 +608,7 @@ def run():
                 log.info("EXCEPTIONAL MARKET — score=%d ≥ %d. Taking 5th trade.",
                          max_score, EXCEPTIONAL_SCORE)
 
-            # ── Lockdown gate: protect ₹1000+ daily profit ──────────────────
+            # ── Lockdown gate: protect ₹2000+ daily profit ──────────────────
             MAX_LOCKDOWN_TRADES = 2
             LOCKDOWN_MIN_SCORE  = 5  # higher bar when protecting profits
             if state["lockdown_mode"]:
@@ -661,7 +665,7 @@ def run():
                 "sl": round(ltp * (1 - SL_PCT), 2),
                 "qty": lot, "last_dir": direction,
                 "peak_ltp": ltp,
-                "capital_profit_target": 1000.0,
+                "capital_profit_target": float(CAPITAL_TARGET),
                 "last_momentum_score": max(bull, bear),
                 "monitor_tick": 0,
             })
