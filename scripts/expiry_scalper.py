@@ -373,7 +373,7 @@ def restore_state_from_broker() -> None:
                 "sl": round(entry * (1 - SL_PCT), 2),
                 "qty": qty, "trades": 1,
                 "peak_ltp": entry,
-                "capital_profit_target": round(get_balance() * 0.07, 2),
+                "capital_profit_target": 1000.0,
                 "last_momentum_score": 0,
                 "monitor_tick": 0,
             })
@@ -608,7 +608,7 @@ def run():
                 "sl": round(ltp * (1 - SL_PCT), 2),
                 "qty": lot, "last_dir": direction,
                 "peak_ltp": ltp,
-                "capital_profit_target": round(balance * 0.07, 2),
+                "capital_profit_target": 1000.0,
                 "last_momentum_score": max(bull, bear),
                 "monitor_tick": 0,
             })
