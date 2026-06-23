@@ -91,6 +91,9 @@ state = {
     "or_high": None, "or_low": None, "or_set": False,
     "last_dir": None, "daily_pnl": 0.0,
     "cooldown_until": 0,
+    "lockdown_mode": False,     # True once daily_pnl >= 1000 — only quality trades after
+    "lockdown_trades": 0,       # count of trades taken in lockdown mode (max 2)
+    "daily_peak_pnl": 0.0,      # highest daily_pnl reached — used to decide if we're still above target
 }
 
 TRAIL_ACTIVATE_PCT      = 0.15  # start trailing once +15% gained
@@ -420,6 +423,11 @@ def run():
                     if oid:
                         pnl = (ltp - state["entry"]) * state["qty"]
                         state["daily_pnl"] += pnl
+                        state["daily_peak_pnl"] = max(state["daily_peak_pnl"], state["daily_pnl"])
+                        if state["daily_pnl"] >= 1000 and not state["lockdown_mode"]:
+                            state["lockdown_mode"] = True
+                            log.info("LOCKDOWN — daily PnL=₹%.0f. Only quality signals, max 2 more trades.",
+                                     state["daily_pnl"])
                         log.info("THETA EXIT — PnL=₹%.0f | daily=₹%.0f", pnl, state["daily_pnl"])
                         state["active"] = False
                 time.sleep(60)
@@ -485,6 +493,11 @@ def run():
                     oid = place_order(state["sid"], state["qty"], "SELL")
                     if oid:
                         state["daily_pnl"] += pnl_rs
+                        state["daily_peak_pnl"] = max(state["daily_peak_pnl"], state["daily_pnl"])
+                        if state["daily_pnl"] >= 1000 and not state["lockdown_mode"]:
+                            state["lockdown_mode"] = True
+                            log.info("LOCKDOWN — daily PnL=₹%.0f. Only quality signals, max 2 more trades.",
+                                     state["daily_pnl"])
                         state["active"]     = False
                         state["cooldown_until"] = time.time() + 120
                         log.info("CAPITAL EXIT entry=%.2f exit=%.2f PnL=₹%.0f | daily=₹%.0f",
@@ -503,6 +516,11 @@ def run():
                     if oid:
                         pnl = (ltp - state["entry"]) * state["qty"]
                         state["daily_pnl"] += pnl
+                        state["daily_peak_pnl"] = max(state["daily_peak_pnl"], state["daily_pnl"])
+                        if state["daily_pnl"] >= 1000 and not state["lockdown_mode"]:
+                            state["lockdown_mode"] = True
+                            log.info("LOCKDOWN — daily PnL=₹%.0f. Only quality signals, max 2 more trades.",
+                                     state["daily_pnl"])
                         state["active"]     = False
                         state["cooldown_until"] = time.time() + 120
                         log.info("CLOSED entry=%.2f exit=%.2f PnL=₹%.0f | daily=₹%.0f",
@@ -571,6 +589,27 @@ def run():
                 continue
 
             log.info("SIGNAL %s — %s", direction, reason)
+
+            # ── Lockdown gate: protect ₹1000+ daily profit ──────────────────
+            MAX_LOCKDOWN_TRADES = 2
+            LOCKDOWN_MIN_SCORE  = 5  # higher bar when protecting profits
+            if state["lockdown_mode"]:
+                max_score = max(bull, bear)
+                if state["lockdown_trades"] >= MAX_LOCKDOWN_TRADES:
+                    log.info("LOCKDOWN DONE — %d lockdown trades taken. Daily PnL=₹%.0f. Stopping.",
+                             state["lockdown_trades"], state["daily_pnl"])
+                    break
+                if state["lockdown_trades"] == MAX_LOCKDOWN_TRADES - 1:
+                    # Final shot — take it regardless, then stop
+                    pass
+                elif max_score < LOCKDOWN_MIN_SCORE:
+                    log.info("LOCKDOWN SKIP — score=%d < %d. Daily PnL=₹%.0f. Waiting for quality setup.",
+                             max_score, LOCKDOWN_MIN_SCORE, state["daily_pnl"])
+                    time.sleep(LOOP_SECS)
+                    continue
+                state["lockdown_trades"] += 1
+                log.info("LOCKDOWN TRADE %d/%d — score=%d. Daily PnL=₹%.0f",
+                         state["lockdown_trades"], MAX_LOCKDOWN_TRADES, max_score, state["daily_pnl"])
 
             # ── Resolve + check ───────────────────────────────────────────────
             result = resolve_option(spot, direction)
