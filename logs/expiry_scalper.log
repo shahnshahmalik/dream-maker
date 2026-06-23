@@ -1817,3 +1817,49 @@
 10:40:53 | INFO    | SCORE → bull=0 bear=1 | HTF_bear | vol=430246/avg=632910
 10:40:53 | INFO    | MOMENTUM refresh score=1 (bull=0 bear=1)
 10:40:53 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=44.95 PnL=-2.2% (₹-65) TP=73.52 SL=36.76 peak=45.95
+10:41:06 | INFO    | ============================================================
+10:41:06 | INFO    | EXPIRY SCALPER v2 — 1m entries | TP=+60% SL=-20% | MaxTrades=4 (+1 exceptional ≥6)
+10:41:06 | INFO    | Target ₹2000/day | Capital target ₹1000/trade | Lockdown at ₹2000
+10:41:06 | INFO    | Theta kill 14:15 | Dead zone 12:00–13:00
+10:41:06 | INFO    | ============================================================
+10:41:07 | INFO    | RESTORED position NIFTY-Jun2026-24100-CE qty=65 entry=43.27 TP=69.24 SL=34.62
+10:41:07 | INFO    | ── 10:41:07 | trade=1/4 | active=True | pnl=₹0 ──
+10:41:07 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=43.70 PnL=1.0% (₹28) TP=69.24 SL=34.62 peak=43.70
+10:41:37 | INFO    | ── 10:41:37 | trade=1/4 | active=True | pnl=₹0 ──
+10:41:37 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=43.00 PnL=-0.6% (₹-18) TP=69.24 SL=34.62 peak=43.70
+10:42:07 | INFO    | ── 10:42:07 | trade=1/4 | active=True | pnl=₹0 ──
+10:42:07 | INFO    | SCORE → bull=1 bear=0 | HTF_bull | vol=60309/avg=565811
+10:42:07 | INFO    | MOMENTUM refresh score=1 (bull=1 bear=0)
+10:42:07 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=45.65 PnL=5.5% (₹154) TP=69.24 SL=34.62 peak=45.65
+10:42:37 | INFO    | ── 10:42:37 | trade=1/4 | active=True | pnl=₹0 ──
+10:42:37 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=42.95 PnL=-0.8% (₹-21) TP=69.24 SL=34.62 peak=45.65
+10:43:07 | INFO    | ── 10:43:07 | trade=1/4 | active=True | pnl=₹0 ──
+10:43:07 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=43.05 PnL=-0.5% (₹-15) TP=69.24 SL=34.62 peak=45.65
+10:43:37 | INFO    | ── 10:43:37 | trade=1/4 | active=True | pnl=₹0 ──
+10:43:38 | INFO    | SCORE → bull=1 bear=1 | VWAP_reject_bear@24116 | HTF_bull | vol=399180/avg=613982
+10:43:38 | INFO    | MOMENTUM refresh score=1 (bull=1 bear=1)
+10:43:38 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=41.80 PnL=-3.4% (₹-96) TP=69.24 SL=34.62 peak=45.65
+10:44:08 | INFO    | ── 10:44:08 | trade=1/4 | active=True | pnl=₹0 ──
+10:44:08 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=41.75 PnL=-3.5% (₹-99) TP=69.24 SL=34.62 peak=45.65
+10:44:38 | INFO    | ── 10:44:38 | trade=1/4 | active=True | pnl=₹0 ──
+10:44:38 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=40.00 PnL=-7.6% (₹-213) TP=69.24 SL=34.62 peak=45.65
+10:45:08 | INFO    | ── 10:45:08 | trade=1/4 | active=True | pnl=₹0 ──
+10:45:08 | INFO    | SCORE → bull=0 bear=3 | EMA_align_bear | VWAP_reject_bear@24115 | HTF_bear | vol=64853/avg=560292
+10:45:08 | INFO    | MOMENTUM refresh score=3 (bull=0 bear=3)
+10:45:08 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=38.00 PnL=-12.2% (₹-343) TP=69.24 SL=34.62 peak=45.65
+10:45:38 | INFO    | ── 10:45:38 | trade=1/4 | active=True | pnl=₹0 ──
+10:45:38 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=37.75 PnL=-12.8% (₹-359) TP=69.24 SL=34.62 peak=45.65
+10:46:08 | INFO    | ── 10:46:08 | trade=1/4 | active=True | pnl=₹0 ──
+10:46:09 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=37.10 PnL=-14.3% (₹-401) TP=69.24 SL=34.62 peak=45.65
+10:46:39 | INFO    | ── 10:46:39 | trade=1/4 | active=True | pnl=₹0 ──
+10:46:39 | INFO    | SCORE → bull=0 bear=3 | EMA_align_bear | VWAP_reject_bear@24114 | HTF_bear | vol=558432/avg=584527
+10:46:39 | INFO    | MOMENTUM refresh score=3 (bull=0 bear=3)
+10:46:39 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=37.05 PnL=-14.4% (₹-405) TP=69.24 SL=34.62 peak=45.65
+10:47:09 | INFO    | ── 10:47:09 | trade=1/4 | active=True | pnl=₹0 ──
+10:47:09 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=38.50 PnL=-11.0% (₹-310) TP=69.24 SL=34.62 peak=45.65
+10:47:39 | INFO    | ── 10:47:39 | trade=1/4 | active=True | pnl=₹0 ──
+10:47:39 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=38.70 PnL=-10.6% (₹-297) TP=69.24 SL=34.62 peak=45.65
+10:48:09 | INFO    | ── 10:48:09 | trade=1/4 | active=True | pnl=₹0 ──
+10:48:09 | INFO    | SCORE → bull=0 bear=3 | EMA_align_bear | VWAP_reject_bear@24114 | HTF_bear | vol=107570/avg=517677
+10:48:09 | INFO    | MOMENTUM refresh score=3 (bull=0 bear=3)
+10:48:09 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=37.80 PnL=-12.7% (₹-356) TP=69.24 SL=34.62 peak=45.65

@@ -53,10 +53,9 @@ DB_PATH      = "/home/ubuntu/projects/dream-maker/data/scrip_master.db"
 
 TP_PCT       = 0.60
 SL_PCT       = 0.20
-MAX_TRADES         = 4
-EXCEPTIONAL_SCORE  = 6  # bull or bear score ≥ this → allow 5th trade
-DAILY_TARGET       = 2000      # ₹ target per day — triggers lockdown
-CAPITAL_TARGET     = 1000      # ₹ target per trade — exit when unrealised PnL ≥ this
+MAX_TRADES    = 10         # hard cap — stop at 10 trades or ₹2000, whichever first
+DAILY_TARGET  = 2000       # ₹ target per day — stop trading when cumulative PnL ≥ this
+CAPITAL_TARGET = 1000      # ₹ target per trade — exit when unrealised PnL ≥ this
 THETA_KILL   = (14, 15)   # 14:15 IST — earlier on expiry day
 DEAD_START   = (12, 0)
 DEAD_END     = (13, 0)
@@ -94,9 +93,6 @@ state = {
     "or_high": None, "or_low": None, "or_set": False,
     "last_dir": None, "daily_pnl": 0.0,
     "cooldown_until": 0,
-    "lockdown_mode": False,     # True once daily_pnl >= DAILY_TARGET — only quality trades after
-    "lockdown_trades": 0,       # count of trades taken in lockdown mode (max 2)
-    "daily_peak_pnl": 0.0,      # highest daily_pnl reached — used to decide if we're still above target
 }
 
 TRAIL_ACTIVATE_PCT      = 0.15  # start trailing once +15% gained
@@ -402,9 +398,9 @@ def run():
         return
 
     log.info("=" * 60)
-    log.info("EXPIRY SCALPER v2 — 1m entries | TP=+%.0f%% SL=-%.0f%% | MaxTrades=%d (+1 exceptional ≥%d)",
-             TP_PCT * 100, SL_PCT * 100, MAX_TRADES, EXCEPTIONAL_SCORE)
-    log.info("Target ₹%d/day | Capital target ₹%d/trade | Lockdown at ₹%d",
+    log.info("EXPIRY SCALPER v2 — 1m entries | TP=+%.0f%% SL=-%.0f%% | MaxTrades=%d",
+             TP_PCT * 100, SL_PCT * 100, MAX_TRADES)
+    log.info("Target ₹%d/day | Capital target ₹%d/trade | Stop at 10 trades or ₹%d",
              DAILY_TARGET, CAPITAL_TARGET, DAILY_TARGET)
     log.info("Theta kill %02d:%02d | Dead zone %02d:%02d–%02d:%02d",
              *THETA_KILL, *DEAD_START, *DEAD_END)
@@ -428,13 +424,11 @@ def run():
                     if oid:
                         pnl = (ltp - state["entry"]) * state["qty"]
                         state["daily_pnl"] += pnl
-                        state["daily_peak_pnl"] = max(state["daily_peak_pnl"], state["daily_pnl"])
-                        if state["daily_pnl"] >= DAILY_TARGET and not state["lockdown_mode"]:
-                            state["lockdown_mode"] = True
-                            log.info("LOCKDOWN — daily PnL=₹%.0f. Only quality signals, max 2 more trades.",
-                                     state["daily_pnl"])
                         log.info("THETA EXIT — PnL=₹%.0f | daily=₹%.0f", pnl, state["daily_pnl"])
                         state["active"] = False
+                        if state["daily_pnl"] >= DAILY_TARGET:
+                            log.info("DAILY TARGET ₹%d HIT — stopping", DAILY_TARGET)
+                            break
                 time.sleep(60)
                 continue
 
@@ -498,15 +492,13 @@ def run():
                     oid = place_order(state["sid"], state["qty"], "SELL")
                     if oid:
                         state["daily_pnl"] += pnl_rs
-                        state["daily_peak_pnl"] = max(state["daily_peak_pnl"], state["daily_pnl"])
-                        if state["daily_pnl"] >= DAILY_TARGET and not state["lockdown_mode"]:
-                            state["lockdown_mode"] = True
-                            log.info("LOCKDOWN — daily PnL=₹%.0f. Only quality signals, max 2 more trades.",
-                                     state["daily_pnl"])
                         state["active"]     = False
                         state["cooldown_until"] = time.time() + 120
                         log.info("CAPITAL EXIT entry=%.2f exit=%.2f PnL=₹%.0f | daily=₹%.0f",
                                  state["entry"], ltp, pnl_rs, state["daily_pnl"])
+                        if state["daily_pnl"] >= DAILY_TARGET:
+                            log.info("DAILY TARGET ₹%d HIT — stopping", DAILY_TARGET)
+                            break
                     time.sleep(LOOP_SECS)
                     continue
 
@@ -521,15 +513,13 @@ def run():
                     if oid:
                         pnl = (ltp - state["entry"]) * state["qty"]
                         state["daily_pnl"] += pnl
-                        state["daily_peak_pnl"] = max(state["daily_peak_pnl"], state["daily_pnl"])
-                        if state["daily_pnl"] >= DAILY_TARGET and not state["lockdown_mode"]:
-                            state["lockdown_mode"] = True
-                            log.info("LOCKDOWN — daily PnL=₹%.0f. Only quality signals, max 2 more trades.",
-                                     state["daily_pnl"])
                         state["active"]     = False
                         state["cooldown_until"] = time.time() + 120
                         log.info("CLOSED entry=%.2f exit=%.2f PnL=₹%.0f | daily=₹%.0f",
                                  state["entry"], ltp, pnl, state["daily_pnl"])
+                        if state["daily_pnl"] >= DAILY_TARGET:
+                            log.info("DAILY TARGET ₹%d HIT — stopping", DAILY_TARGET)
+                            break
                 time.sleep(LOOP_SECS)
                 continue
 
@@ -571,11 +561,9 @@ def run():
                 continue
 
             if state["trades"] >= MAX_TRADES:
-                if state["trades"] >= MAX_TRADES + 1:
-                    log.info("Max trades hit (5/5)")
-                    time.sleep(120)
-                    continue
-                # trades == 4: allow flow-through — gate on exceptional score below
+                log.info("Max trades hit (10/10)")
+                time.sleep(120)
+                continue
 
             if time.time() < state["cooldown_until"]:
                 log.info("Cooldown %.0fs remaining", state["cooldown_until"] - time.time())
@@ -596,38 +584,6 @@ def run():
                 continue
 
             log.info("SIGNAL %s — %s", direction, reason)
-
-            # ── Exceptional 5th-trade gate: allow only on very strong signals ─
-            if state["trades"] == MAX_TRADES:
-                max_score = max(bull, bear)
-                if max_score < EXCEPTIONAL_SCORE:
-                    log.info("Max trades (4/4) — score %d < %d exceptional threshold. Denied.",
-                             max_score, EXCEPTIONAL_SCORE)
-                    time.sleep(120)
-                    continue
-                log.info("EXCEPTIONAL MARKET — score=%d ≥ %d. Taking 5th trade.",
-                         max_score, EXCEPTIONAL_SCORE)
-
-            # ── Lockdown gate: protect ₹2000+ daily profit ──────────────────
-            MAX_LOCKDOWN_TRADES = 2
-            LOCKDOWN_MIN_SCORE  = 5  # higher bar when protecting profits
-            if state["lockdown_mode"]:
-                max_score = max(bull, bear)
-                if state["lockdown_trades"] >= MAX_LOCKDOWN_TRADES:
-                    log.info("LOCKDOWN DONE — %d lockdown trades taken. Daily PnL=₹%.0f. Stopping.",
-                             state["lockdown_trades"], state["daily_pnl"])
-                    break
-                if state["lockdown_trades"] == MAX_LOCKDOWN_TRADES - 1:
-                    # Final shot — take it regardless, then stop
-                    pass
-                elif max_score < LOCKDOWN_MIN_SCORE:
-                    log.info("LOCKDOWN SKIP — score=%d < %d. Daily PnL=₹%.0f. Waiting for quality setup.",
-                             max_score, LOCKDOWN_MIN_SCORE, state["daily_pnl"])
-                    time.sleep(LOOP_SECS)
-                    continue
-                state["lockdown_trades"] += 1
-                log.info("LOCKDOWN TRADE %d/%d — score=%d. Daily PnL=₹%.0f",
-                         state["lockdown_trades"], MAX_LOCKDOWN_TRADES, max_score, state["daily_pnl"])
 
             # ── Resolve + check ───────────────────────────────────────────────
             result = resolve_option(spot, direction)
@@ -671,8 +627,8 @@ def run():
             })
             state["trades"] += 1
 
-            log.info("ACTIVE %s entry=%.2f TP=%.2f SL=%.2f trade=%d/%d (5th if score≥%d)",
-                     sym, ltp, state["tp"], state["sl"], state["trades"], MAX_TRADES, EXCEPTIONAL_SCORE)
+            log.info("ACTIVE %s entry=%.2f TP=%.2f SL=%.2f trade=%d/%d",
+                     sym, ltp, state["tp"], state["sl"], state["trades"], MAX_TRADES)
 
         except KeyboardInterrupt:
             log.info("Interrupted")
