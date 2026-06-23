@@ -56,7 +56,8 @@ DB_PATH = "/home/ubuntu/projects/dream-maker/data/scrip_master.db"
 
 TP_PCT       = 0.30
 SL_PCT       = 0.15
-MAX_TRADES   = 3
+MAX_TRADES         = 3
+EXCEPTIONAL_SCORE  = 6  # bull or bear score ≥ this → allow 4th trade
 MAX_LOTS     = 1          # maximum lots per trade (1 lot = lot_size contracts)
 THETA_KILL   = (15, 0)    # 15:00 IST — non-expiry, can hold longer than expiry day
 DEAD_START   = (12, 0)
@@ -424,8 +425,8 @@ def run() -> None:
         return
 
     log.info("=" * 60)
-    log.info("NON-EXPIRY SCALPER v1 — 5m entries | TP=+%.0f%% SL=-%.0f%% | MaxTrades=%d",
-             TP_PCT * 100, SL_PCT * 100, MAX_TRADES)
+    log.info("NON-EXPIRY SCALPER v1 — 5m entries | TP=+%.0f%% SL=-%.0f%% | MaxTrades=%d (+1 exceptional ≥%d)",
+             TP_PCT * 100, SL_PCT * 100, MAX_TRADES, EXCEPTIONAL_SCORE)
     log.info("Theta kill %02d:%02d | Dead zone %02d:%02d–%02d:%02d | ORB ends %02d:%02d",
              *THETA_KILL, *DEAD_START, *DEAD_END, *ORB_END)
     log.info("=" * 60)
@@ -573,9 +574,11 @@ def run() -> None:
                 continue
 
             if state["trades"] >= MAX_TRADES:
-                log.info("Max trades hit")
-                time.sleep(120)
-                continue
+                if state["trades"] >= MAX_TRADES + 1:
+                    log.info("Max trades hit (4/4)")
+                    time.sleep(120)
+                    continue
+                # trades == 3: allow flow-through — gate on exceptional score below
 
             if time.time() < state["cooldown_until"]:
                 log.info("Cooldown %.0fs remaining", state["cooldown_until"] - time.time())
@@ -596,6 +599,17 @@ def run() -> None:
                 continue
 
             log.info("SIGNAL %s — %s", direction, reason)
+
+            # ── Exceptional 4th-trade gate: allow only on very strong signals ─
+            if state["trades"] == MAX_TRADES:
+                max_score = max(bull, bear)
+                if max_score < EXCEPTIONAL_SCORE:
+                    log.info("Max trades (3/3) — score %d < %d exceptional threshold. Denied.",
+                             max_score, EXCEPTIONAL_SCORE)
+                    time.sleep(120)
+                    continue
+                log.info("EXCEPTIONAL MARKET — score=%d ≥ %d. Taking 4th trade.",
+                         max_score, EXCEPTIONAL_SCORE)
 
             # ── India VIX gate ────────────────────────────────────────────────
             vix = get_india_vix()
@@ -684,8 +698,8 @@ def run() -> None:
             })
             state["trades"] += 1
 
-            log.info("ACTIVE %s entry=%.2f TP=%.2f SL=%.2f trade=%d/%d",
-                     sym, ltp, state["tp"], state["sl"], state["trades"], MAX_TRADES)
+            log.info("ACTIVE %s entry=%.2f TP=%.2f SL=%.2f trade=%d/%d (4th if score≥%d)",
+                     sym, ltp, state["tp"], state["sl"], state["trades"], MAX_TRADES, EXCEPTIONAL_SCORE)
 
         except KeyboardInterrupt:
             log.info("Interrupted")
