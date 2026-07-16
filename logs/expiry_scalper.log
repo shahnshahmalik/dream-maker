@@ -1863,3 +1863,10 @@
 10:48:09 | INFO    | SCORE → bull=0 bear=3 | EMA_align_bear | VWAP_reject_bear@24114 | HTF_bear | vol=107570/avg=517677
 10:48:09 | INFO    | MOMENTUM refresh score=3 (bull=0 bear=3)
 10:48:09 | INFO    | MONITOR NIFTY-Jun2026-24100-CE LTP=37.80 PnL=-12.7% (₹-356) TP=69.24 SL=34.62 peak=45.65
+15:23:47 | INFO    | ============================================================
+15:23:47 | INFO    | EXPIRY SNIPER v3 -- 1m | TP=+50% SL=-18% | MaxTrades=4 | MinScore=3
+15:23:47 | INFO    | Trail: activate +12% -> BE+2% then peak-8% | Daily +Rs2000 / -Rs1500 | Prem [25, 180]
+15:23:47 | INFO    | Theta 14:15 | Dead 12:00-13:00 | Entries from 09:30
+15:23:47 | INFO    | ============================================================
+15:23:47 | INFO    | Final Rs+0.00  trades=0
+15:23:47 | INFO    | === DONE ===
