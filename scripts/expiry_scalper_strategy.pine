@@ -1,0 +1,371 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Dream Maker — Expiry Scalper Strategy (OLD — Tuesday, 1-minute)
+// Pine Script v5
+//
+// Faithfully mirrors the OLD scripts/expiry_scalper.py (commit a7f313c)
+// before the sniper refactor.
+//
+// Key differences vs the new Expiry Sniper:
+//   • MIN_SIGNAL = 1 (any single signal is enough vs 3 in sniper)
+//   • No require_primary gate — HTF/ORB alignment not mandatory
+//   • No require_htf_align hard block — HTF just adds 1 point
+//   • TP = 60% / SL = 20% (vs 50%/18% in sniper)
+//   • Trailing SL: absolute rupee breakeven buffer (₹8 above entry)
+//     activates at +15% gain — NOT percent-based
+//   • VWAP rejection worth +1 (vs +2 in sniper)
+//   • MAX_TRADES = 10, single 120 s cooldown after any exit
+//   • Capital target = fixed ₹1000 per trade (vs % of position cost)
+//   • HIGH_MOMENTUM_THRESHOLD = 3 (vs 4 in sniper)
+//   • No consecutive-loss halt
+//   • VOL_MULT = 1.05 (vs 1.15 in sniper)
+//
+// IMPORTANT — proxy methodology (same caveat as sniper scripts):
+//   TradingView has no historical option-premium feed. This strategy trades
+//   the underlying symbol directly and scales premium-based TP/SL % via a
+//   "Premium leverage" divisor. Use it as an entry-signal-quality backtest,
+//   not a rupee P&L simulation. India VIX and OI gates are not reproduced.
+//
+// Recommended chart: NIFTY / NIFTY futures, 1-minute, Tuesdays only.
+// ═══════════════════════════════════════════════════════════════════════════
+
+//@version=5
+strategy("Dream Maker — Expiry Scalper OLD (NIFTY 1m)", shorttitle="DM Expiry Scalper",
+     overlay=true, initial_capital=100000, currency=currency.INR,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=20,
+     pyramiding=0, calc_on_every_tick=false, process_orders_on_close=false,
+     commission_type=strategy.commission.percent, commission_value=0.03,
+     slippage=2)
+
+// ── Session ──────────────────────────────────────────────────────────────
+g_sess = "Session"
+only_tuesday   = input.bool(true, "Only enter on Tuesdays (expiry day)", group=g_sess)
+entries_from_h = input.int(9,  "Entries from — hour",   group=g_sess, minval=0, maxval=23)
+entries_from_m = input.int(30, "Entries from — minute", group=g_sess, minval=0, maxval=59)
+theta_kill_h   = input.int(14, "Theta kill — hour",     group=g_sess, minval=0, maxval=23)
+theta_kill_m   = input.int(15, "Theta kill — minute",   group=g_sess, minval=0, maxval=59)
+dead_start_h   = input.int(12, "Dead zone start hour",  group=g_sess)
+dead_start_m   = input.int(0,  "Dead zone start minute",group=g_sess)
+dead_end_h     = input.int(13, "Dead zone end hour",    group=g_sess)
+dead_end_m     = input.int(0,  "Dead zone end minute",  group=g_sess)
+mkt_close_h    = input.int(15, "Market close hour",     group=g_sess)
+mkt_close_m    = input.int(30, "Market close minute",   group=g_sess)
+
+// ── Opening range (9:15–9:29 on 1m = 15 bars) ───────────────────────────
+g_orb = "Opening Range"
+orb_start_h  = input.int(9,  "ORB start hour",   group=g_orb)
+orb_start_m  = input.int(15, "ORB start minute", group=g_orb)
+orb_end_h    = input.int(9,  "ORB end hour",     group=g_orb)
+orb_end_m    = input.int(29, "ORB end minute",   group=g_orb)
+min_orb_bars = input.int(5,  "Min bars to lock ORB", group=g_orb, minval=2)
+
+// ── Signal engine (old params) ───────────────────────────────────────────
+g_sig = "Signal engine (old scalper)"
+min_signal  = input.int(1,    "Minimum score to enter (old=1)", group=g_sig, minval=1)
+vol_mult    = input.float(1.05, "Volume multiplier (old=1.05)", group=g_sig, step=0.05)
+htf_tf      = input.timeframe("15", "HTF timeframe", group=g_sig)
+
+// ── Risk — OLD absolute trail, scaled to underlying ──────────────────────
+g_risk = "Risk (old scalper — premium % scaled to underlying)"
+tp_pct_premium              = input.float(60.0, "TP % of premium (old=60)", group=g_risk)
+sl_pct_premium              = input.float(20.0, "SL % of premium (old=20)", group=g_risk)
+premium_leverage            = input.float(5.0,  "Premium leverage (elasticity divisor)", group=g_risk,
+     tooltip="ATM weekly NIFTY options move roughly this many times faster than the underlying. Tune to your observed elasticity.")
+trail_activate_pct_premium  = input.float(15.0, "Trail activates at +% premium gain (old=15)", group=g_risk)
+trail_be_pts_premium        = input.float(8.0,  "Breakeven buffer in premium pts above entry (old=Rs8)", group=g_risk,
+     tooltip="Old engine used a fixed Rs8 absolute buffer above entry price. Enter it in premium-point units; the script scales it by leverage divisor.")
+capital_target_pct_equity   = input.float(1.0,  "Capital target % of equity per trade (old=~Rs1000)", group=g_risk,
+     tooltip="Old engine exited at Rs1000 rupee profit. Approximate as % of equity (e.g. 1% of 100000 = Rs1000).")
+high_momentum_threshold     = input.int(3,      "Momentum score to skip capital target (old=3)", group=g_risk)
+
+// ── Trade limits ─────────────────────────────────────────────────────────
+g_lim = "Trade limits (old scalper)"
+max_trades      = input.int(10,  "Max trades per day (old=10)", group=g_lim, minval=1)
+cooldown_secs   = input.int(120, "Cooldown after any exit — seconds (old=120)", group=g_lim)
+
+// ── Daily risk ───────────────────────────────────────────────────────────
+g_day = "Daily risk halts (% of equity, approx)"
+daily_target_pct = input.float(2.0, "Daily profit target % — stop trading (old~Rs2000)", group=g_day)
+
+// ── India VIX gate (optional) ────────────────────────────────────────────
+g_vix = "India VIX gate (optional)"
+use_vix_gate    = input.bool(false, "Enable VIX gate (old scalper did not have this — off by default)", group=g_vix)
+vix_symbol      = input.symbol("NSE:INDIAVIX", "VIX symbol", group=g_vix)
+vix_block_level = input.float(22.0, "Block entries when VIX above", group=g_vix)
+
+// ── Position sizing ──────────────────────────────────────────────────────
+g_size = "Position sizing"
+qty_pct_of_equity = input.float(20.0, "% of equity per trade", group=g_size, minval=1, maxval=100)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Time helpers
+// ═══════════════════════════════════════════════════════════════════════════
+is_tuesday   = dayofweek == dayofweek.tuesday
+cur_hm       = hour * 60 + minute
+entries_from = entries_from_h * 60 + entries_from_m
+theta_kill   = theta_kill_h   * 60 + theta_kill_m
+dead_start   = dead_start_h   * 60 + dead_start_m
+dead_end     = dead_end_h     * 60 + dead_end_m
+mkt_close    = mkt_close_h    * 60 + mkt_close_m
+orb_start    = orb_start_h    * 60 + orb_start_m
+orb_end      = orb_end_h      * 60 + orb_end_m
+
+in_dead_zone    = cur_hm >= dead_start and cur_hm < dead_end
+past_theta      = cur_hm >= theta_kill
+past_close      = cur_hm >= mkt_close
+in_orb_window   = cur_hm >= orb_start and cur_hm <= orb_end
+in_trade_window = cur_hm >= entries_from and not past_theta and not in_dead_zone
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Daily state (reset on new day)
+// ═══════════════════════════════════════════════════════════════════════════
+new_day = ta.change(time("D")) != 0
+
+var float or_high           = na
+var float or_low            = na
+var bool  or_set             = false
+var int   orb_bar_count      = 0
+var int   trades_today       = 0
+var float day_realized_pct   = 0.0
+var bool  halted_today       = false
+var int   cooldown_until_bar = 0
+var int   last_closed_count  = 0
+
+if new_day
+    or_high := na
+    or_low := na
+    or_set := false
+    orb_bar_count := 0
+    trades_today := 0
+    day_realized_pct := 0.0
+    halted_today := false
+    cooldown_until_bar := 0
+
+if in_orb_window
+    or_high := na(or_high) ? high : math.max(or_high, high)
+    or_low  := na(or_low)  ? low  : math.min(or_low, low)
+    orb_bar_count += 1
+    if orb_bar_count >= min_orb_bars
+        or_set := true
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Core indicators
+// ═══════════════════════════════════════════════════════════════════════════
+ema9     = ta.ema(close, 9)
+ema21    = ta.ema(close, 21)
+vwap_val = ta.vwap(hlc3)
+
+// HTF EMA — non-repainting (lookahead_off + calc_on_every_tick=false)
+htf_ema9  = request.security(syminfo.tickerid, htf_tf, ta.ema(close, 9),  lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htf_ema21 = request.security(syminfo.tickerid, htf_tf, ta.ema(close, 21), lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htf_bias_bull = htf_ema9 > htf_ema21
+htf_bias_bear = htf_ema9 < htf_ema21
+
+// Volume gate — trimmed 10-bar baseline (same logic as old engine)
+var float[] vol_hist = array.new_float(0)
+array.push(vol_hist, volume)
+if array.size(vol_hist) > 11
+    array.shift(vol_hist)
+
+f_vol_baseline(array<float> hist) =>
+    n = array.size(hist)
+    float result = na
+    if n >= 2
+        base = array.copy(hist)
+        array.pop(base)
+        if array.size(base) >= 4
+            mx  = array.max(base)
+            idx = array.indexof(base, mx)
+            array.remove(base, idx)
+        if array.size(base) > 0
+            result := array.sum(base) / array.size(base)
+    result
+
+vol_baseline = f_vol_baseline(vol_hist)
+vol_ok = not na(vol_baseline) and volume >= vol_baseline * vol_mult
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Signal scoring — OLD scalper point values
+//
+//   EMA cross       +2  (bull or bear)
+//   EMA align       +1  (bull or bear)
+//   ORB fresh break +2  (bull or bear)
+//   ORB hold        +1  (bull or bear)
+//   VWAP rejection  +1  ← OLD gives +1 (sniper gives +2)
+//   HH/HL or LH/LL  +1
+//   HTF alignment   +1  ← just adds a point, does NOT block
+//
+//   MIN_SIGNAL = 1 — any one of the above fires an entry signal
+// ═══════════════════════════════════════════════════════════════════════════
+bull_body = close > open
+bear_body = close < open
+
+ema_cross_bull = ema9 > ema21 and ema9[1] <= ema21[1]
+ema_align_bull = ema9 > ema21 and close > ema9 and not ema_cross_bull
+ema_cross_bear = ema9 < ema21 and ema9[1] >= ema21[1]
+ema_align_bear = ema9 < ema21 and close < ema9 and not ema_cross_bear
+
+bull_pts_ema = ema_cross_bull ? 2 : ema_align_bull ? 1 : 0
+bear_pts_ema = ema_cross_bear ? 2 : ema_align_bear ? 1 : 0
+
+orb_break_bull = or_set and close > or_high and bull_body and close[1] <= or_high
+orb_above_bull = or_set and close > or_high and bull_body and not orb_break_bull
+orb_break_bear = or_set and close < or_low  and bear_body and close[1] >= or_low
+orb_below_bear = or_set and close < or_low  and bear_body and not orb_break_bear
+
+bull_pts_orb = orb_break_bull ? 2 : orb_above_bull ? 1 : 0
+bear_pts_orb = orb_break_bear ? 2 : orb_below_bear ? 1 : 0
+
+// OLD: VWAP rejection is worth +1 (NOT +2 like the sniper)
+vwap_reject_bull = vwap_val > 0 and math.abs(low  - vwap_val) / vwap_val < 0.0015 and close > vwap_val and bull_body
+vwap_reject_bear = vwap_val > 0 and math.abs(high - vwap_val) / vwap_val < 0.0015 and close < vwap_val and bear_body
+bull_pts_vwap = vwap_reject_bull ? 1 : 0
+bear_pts_vwap = vwap_reject_bear ? 1 : 0
+
+hh_hl = high >= high[1] and high[1] >= high[2] and high[2] >= high[3] and high[3] >= high[4] and low >= low[1] and low[1] >= low[2] and low[2] >= low[3] and low[3] >= low[4]
+lh_ll = high <= high[1] and high[1] <= high[2] and high[2] <= high[3] and high[3] <= high[4] and low <= low[1] and low[1] <= low[2] and low[2] <= low[3] and low[3] <= low[4]
+bull_pts_struct = hh_hl ? 1 : 0
+bear_pts_struct = lh_ll ? 1 : 0
+
+// OLD: HTF adds +1 only — it does NOT block an entry (no require_htf_align)
+bull_pts_htf = htf_bias_bull ? 1 : 0
+bear_pts_htf = htf_bias_bear ? 1 : 0
+
+bull_score = bull_pts_ema + bull_pts_orb + bull_pts_vwap + bull_pts_struct + bull_pts_htf
+bear_score = bear_pts_ema + bear_pts_orb + bear_pts_vwap + bear_pts_struct + bear_pts_htf
+
+// OLD: no require_primary, no require_htf_align — pure score threshold
+want_long  = bull_score >= min_signal and bull_score > bear_score
+want_short = bear_score >= min_signal and bear_score > bull_score
+
+score_for_entry = want_long ? bull_score : want_short ? bear_score : 0
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Gates
+// ═══════════════════════════════════════════════════════════════════════════
+vix_val = request.security(vix_symbol, timeframe.period, close, lookahead=barmerge.lookahead_off)
+vix_ok  = not use_vix_gate or na(vix_val) or vix_val <= vix_block_level
+
+day_ok = not only_tuesday or is_tuesday
+
+can_enter = day_ok and in_trade_window and vol_ok and vix_ok and not halted_today
+     and bar_index >= cooldown_until_bar and trades_today < max_trades
+     and strategy.position_size == 0 and (want_long or want_short)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Entries
+// ═══════════════════════════════════════════════════════════════════════════
+if can_enter and want_long
+    strategy.entry("Long", strategy.long, qty=strategy.equity * qty_pct_of_equity / 100 / close)
+    trades_today += 1
+    label.new(bar_index, high, "CE " + str.tostring(bull_score), style=label.style_label_down, color=color.new(color.green, 0), textcolor=color.white, size=size.tiny)
+
+if can_enter and want_short
+    strategy.entry("Short", strategy.short, qty=strategy.equity * qty_pct_of_equity / 100 / close)
+    trades_today += 1
+    label.new(bar_index, low, "PE " + str.tostring(bear_score), style=label.style_label_up, color=color.new(color.red, 0), textcolor=color.white, size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Position management — OLD absolute-₹8 trail, TP/SL, capital target, EOD
+// ═══════════════════════════════════════════════════════════════════════════
+in_position = strategy.position_size != 0
+is_long     = strategy.position_size > 0
+entry_price = in_position ? strategy.opentrades.entry_price(0) : na
+
+// Scale premium % to underlying price % via leverage divisor
+tp_pct_u           = tp_pct_premium             / 100.0 / premium_leverage
+sl_pct_u           = sl_pct_premium             / 100.0 / premium_leverage
+trail_act_u        = trail_activate_pct_premium / 100.0 / premium_leverage
+// OLD trail: fixed absolute rupee buffer above entry — ₹8 on premium → scale to underlying
+trail_be_pts_u     = trail_be_pts_premium / premium_leverage
+
+var float peak_price = na
+if in_position
+    peak_price := na(peak_price) ? entry_price : (is_long ? math.max(peak_price, high) : math.min(peak_price, low))
+else
+    peak_price := na
+
+gain_pct      = in_position ? (is_long ? (close - entry_price) / entry_price : (entry_price - close) / entry_price) : na
+peak_gain_pct = in_position ? (is_long ? (peak_price - entry_price) / entry_price : (entry_price - peak_price) / entry_price) : na
+
+float tp_price = na
+float sl_price = na
+if in_position
+    tp_price := is_long ? entry_price * (1 + tp_pct_u) : entry_price * (1 - tp_pct_u)
+    base_sl   = is_long ? entry_price * (1 - sl_pct_u) : entry_price * (1 + sl_pct_u)
+
+    // OLD TRAIL: once +15% gain, SL moves to entry + absolute buffer (NOT percent-based)
+    // This is the bug the sniper fixed — on cheap premiums the SL could flip above entry
+    trail_sl = base_sl
+    if peak_gain_pct >= trail_act_u
+        be_sl = is_long ? entry_price + trail_be_pts_u : entry_price - trail_be_pts_u
+        trail_sl := is_long ? math.max(base_sl, be_sl) : math.min(base_sl, be_sl)
+    sl_price := trail_sl
+
+// Momentum score for capital-target gate (old threshold = 3)
+current_momentum = is_long ? bull_score : bear_score
+high_momentum    = current_momentum >= high_momentum_threshold
+
+// Capital target: % of equity approximating the old ₹1000 fixed target
+cap_target_pct_u  = capital_target_pct_equity / 100.0
+hit_cap           = in_position and gain_pct >= cap_target_pct_u * (strategy.equity / (entry_price * math.abs(strategy.position_size)))
+force_close       = in_position and (past_theta or past_close)
+
+if in_position and force_close
+    strategy.close_all(comment="Theta/EOD")
+else if in_position and hit_cap and not high_momentum
+    strategy.close_all(comment="Capital target")
+else if in_position
+    strategy.exit("Exit", from_entry=is_long ? "Long" : "Short", limit=tp_price, stop=sl_price)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Daily PnL tracking → cooldown + daily halt
+// (OLD: single 120 s cooldown after any exit, no consecutive-loss halt)
+// ═══════════════════════════════════════════════════════════════════════════
+if strategy.closedtrades > last_closed_count
+    last_pnl     = strategy.closedtrades.profit(strategy.closedtrades - 1)
+    last_pnl_pct = strategy.equity != 0 ? last_pnl / strategy.equity * 100 : 0.0
+    day_realized_pct += last_pnl_pct
+    // OLD: same 120 s cooldown regardless of win or loss
+    cooldown_until_bar := bar_index + math.max(1, math.round(cooldown_secs / timeframe.in_seconds()))
+    last_closed_count := strategy.closedtrades
+
+if day_realized_pct >= daily_target_pct
+    halted_today := true
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Visuals
+// ═══════════════════════════════════════════════════════════════════════════
+plot(ema9,  "EMA 9",  color=color.new(color.yellow, 0))
+plot(ema21, "EMA 21", color=color.new(color.orange, 0))
+plot(vwap_val, "VWAP", color=color.new(color.teal, 0), linewidth=2)
+
+or_h_plot = plot(or_set ? or_high : na, "OR High", color=color.new(color.green, 20), style=plot.style_stepline)
+or_l_plot = plot(or_set ? or_low  : na, "OR Low",  color=color.new(color.red, 20),   style=plot.style_stepline)
+fill(or_h_plot, or_l_plot, color=color.new(color.gray, 92))
+
+bgcolor(in_dead_zone ? color.new(color.gray, 90) : na, title="Dead zone")
+bgcolor(past_theta and not past_close ? color.new(color.red, 92) : na, title="Post theta-kill")
+bgcolor(halted_today ? color.new(color.orange, 90) : na, title="Daily halt active")
+
+var table info = table.new(position.top_right, 2, 7, bgcolor=color.new(color.black, 15), border_width=1, border_color=color.new(color.gray, 50))
+if barstate.islast
+    table.cell(info, 0, 0, "Expiry Scalper OLD", bgcolor=color.new(color.maroon, 0), text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 0, syminfo.ticker,        bgcolor=color.new(color.maroon, 0), text_color=color.aqua,  text_size=size.small)
+    table.cell(info, 0, 1, "Trades today", text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 1, str.tostring(trades_today) + "/" + str.tostring(max_trades), text_color=color.yellow, text_size=size.small)
+    table.cell(info, 0, 2, "Day PnL %", text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 2, str.tostring(math.round(day_realized_pct, 2)), text_color=day_realized_pct >= 0 ? color.lime : color.red, text_size=size.small)
+    table.cell(info, 0, 3, "Halted", text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 3, halted_today ? "YES" : "no", text_color=halted_today ? color.red : color.lime, text_size=size.small)
+    table.cell(info, 0, 4, "Bull / Bear", text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 4, str.tostring(bull_score) + " / " + str.tostring(bear_score), text_color=color.aqua, text_size=size.small)
+    table.cell(info, 0, 5, "TP% / SL%", text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 5, str.tostring(tp_pct_premium) + "% / " + str.tostring(sl_pct_premium) + "%", text_color=color.orange, text_size=size.small)
+    table.cell(info, 0, 6, "Min signal", text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 6, str.tostring(min_signal) + " (old=1)", text_color=color.yellow, text_size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Alerts
+// ═══════════════════════════════════════════════════════════════════════════
+alertcondition(can_enter and want_long,  "Expiry Scalper CE", "Dream Maker Expiry Scalper OLD: CE signal on {{ticker}} @ {{close}}")
+alertcondition(can_enter and want_short, "Expiry Scalper PE", "Dream Maker Expiry Scalper OLD: PE signal on {{ticker}} @ {{close}}")
