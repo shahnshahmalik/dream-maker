@@ -182,17 +182,17 @@ htf_ok_bull = not i_req_htf or htf_bull_bias or (bull_score >= i_min_signal + 2)
 htf_ok_bear = not i_req_htf or htf_bear_bias or (bear_score >= i_min_signal + 2)
 
 // ── Entry conditions ──────────────────────────────────────────────────────
-long_ok  = bull_score >= i_min_signal and bull_score > bear_score
-           and (not i_req_primary or bull_has_primary)
-           and htf_ok_bull
-           and entry_window
-           and or_set
+long_ok  = bull_score >= i_min_signal and bull_score > bear_score and
+            (not i_req_primary or bull_has_primary) and
+            htf_ok_bull and
+            entry_window and
+            or_set
 
-short_ok = bear_score >= i_min_signal and bear_score > bull_score
-           and (not i_req_primary or bear_has_primary)
-           and htf_ok_bear
-           and entry_window
-           and or_set
+short_ok = bear_score >= i_min_signal and bear_score > bull_score and
+            (not i_req_primary or bear_has_primary) and
+            htf_ok_bear and
+            entry_window and
+            or_set
 
 no_pos   = strategy.position_size == 0
 
