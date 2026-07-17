@@ -121,20 +121,20 @@ ExpirySniperConfig = SniperConfig(
 )
 
 
-# Non-expiry: slower tape — 5m sniper, stricter filters, next-week ATM.
+# Non-expiry: 1m sniper, stricter filters than expiry, next-week ATM.
 NonExpirySniperConfig = SniperConfig(
     name="NON-EXPIRY SNIPER",
-    version="v2",
+    version="v3",
     run_on_weekday=None,
     skip_weekday=1,  # never on Tuesday
-    entry_interval="5",
-    lookback_entry=40,
+    entry_interval="1",
+    lookback_entry=120,  # cover ORB from 9:15 even mid-morning
     lookback_htf=20,
     orb_start=(9, 15),
-    orb_end_mm=(9, 44),
-    entries_from=(9, 45),
+    orb_end_mm=(9, 29),  # 1m ORB: 9:15-9:29 (15 bars)
+    entries_from=(9, 30),
     min_signal=3,
-    vol_mult=1.35,
+    vol_mult=1.25,       # slightly stricter than expiry (1.15) — non-expiry 1m is noisier
     require_primary=True,
     require_htf_align=True,
     tp_pct=0.35,
@@ -151,13 +151,13 @@ NonExpirySniperConfig = SniperConfig(
     trail_be_buffer_pct=0.02,
     trail_from_peak_pct=0.08,
     high_momentum_score=4,
-    momentum_refresh_ticks=2,
+    momentum_refresh_ticks=3,
     min_premium=30.0,
     max_premium=200.0,
     theta_kill=(15, 0),
     dead_start=(12, 0),
     dead_end=(12, 0),
-    loop_secs=45,
+    loop_secs=25,
     api_delay=1.5,
     cooldown_win_secs=120,
     cooldown_loss_secs=240,
