@@ -1870,3 +1870,17 @@
 15:23:47 | INFO    | ============================================================
 15:23:47 | INFO    | Final Rs+0.00  trades=0
 15:23:47 | INFO    | === DONE ===
+10:09:14 | INFO    | ============================================================
+10:09:14 | INFO    | EXPIRY SNIPER v3 -- 1m | TP=+50% SL=-18% | MaxTrades=4 | MinScore=3
+10:09:14 | INFO    | Trail: activate +12% -> BE+2% then peak-8% | Daily +Rs2000 / -Rs1500 | Prem [25, 180]
+10:09:14 | INFO    | Theta 14:15 | Dead 12:00-12:00 | Entries from 09:30
+10:09:14 | INFO    | ============================================================
+10:09:14 | INFO    | Final Rs+0.00  trades=0
+10:09:14 | INFO    | === DONE ===
+10:20:51 | INFO    | ============================================================
+10:20:51 | INFO    | EXPIRY SNIPER v3 -- 1m | TP=+50% SL=-18% | MaxTrades=4 | MinScore=3
+10:20:51 | INFO    | Trail: activate +12% -> BE+2% then peak-8% | Daily +Rs2000 / -Rs1500 | Prem [25, 180]
+10:20:51 | INFO    | Theta 14:15 | Dead 12:00-12:00 | Entries from 09:30
+10:20:51 | INFO    | ============================================================
+10:20:51 | INFO    | Final Rs+0.00  trades=0
+10:20:51 | INFO    | === DONE ===

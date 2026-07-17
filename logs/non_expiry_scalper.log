@@ -1098,3 +1098,27 @@
 15:23:47 | INFO    | SCORE  bull=6  bear=0  | EMA_align_bull | ORB_above | VWAP_reject_bull@24012 | HH_HL_struct | HTF_bull | vol_closed=2000 thr=1350
 15:23:47 | INFO    | SNIPER GATE: score=3 but no primary trigger — skip
 15:23:47 | INFO    | SNIPER GATE: CE vs HTF_bear score=3 — skip
+10:09:14 | INFO    | ============================================================
+10:09:14 | INFO    | NON-EXPIRY SNIPER v2 -- 5m | TP=+35% SL=-15% | MaxTrades=3 | MinScore=3
+10:09:14 | INFO    | Trail: activate +12% -> BE+2% then peak-8% | Daily +Rs2000 / -Rs1200 | Prem [30, 200]
+10:09:14 | INFO    | Theta 15:00 | Dead 12:00-12:00 | Entries from 09:45
+10:09:14 | INFO    | ============================================================
+10:09:14 | INFO    | Market closed. Done.
+10:09:14 | INFO    | Final Rs+0.00  trades=0
+10:09:14 | INFO    | === DONE ===
+10:09:14 | INFO    | SNIPER GATE: score=3 but no primary trigger — skip
+10:09:14 | INFO    | SCORE  bull=6  bear=0  | EMA_align_bull | ORB_above | VWAP_reject_bull@24012 | HH_HL_struct | HTF_bull | vol_closed=2000 thr=1350
+10:09:14 | INFO    | SNIPER GATE: score=3 but no primary trigger — skip
+10:09:14 | INFO    | SNIPER GATE: CE vs HTF_bear score=3 — skip
+10:20:51 | INFO    | ============================================================
+10:20:51 | INFO    | NON-EXPIRY SNIPER v3 -- 1m | TP=+35% SL=-15% | MaxTrades=3 | MinScore=3
+10:20:51 | INFO    | Trail: activate +12% -> BE+2% then peak-8% | Daily +Rs2000 / -Rs1200 | Prem [30, 200]
+10:20:51 | INFO    | Theta 15:00 | Dead 12:00-12:00 | Entries from 09:30
+10:20:51 | INFO    | ============================================================
+10:20:51 | INFO    | Market closed. Done.
+10:20:51 | INFO    | Final Rs+0.00  trades=0
+10:20:51 | INFO    | === DONE ===
+10:20:51 | INFO    | SNIPER GATE: score=3 but no primary trigger — skip
+10:20:51 | INFO    | SCORE  bull=6  bear=0  | EMA_align_bull | ORB_above | VWAP_reject_bull@24012 | HH_HL_struct | HTF_bull | vol_closed=2000 thr=1250
+10:20:51 | INFO    | SNIPER GATE: score=3 but no primary trigger — skip
+10:20:51 | INFO    | SNIPER GATE: CE vs HTF_bear score=3 — skip

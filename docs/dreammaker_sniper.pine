@@ -1,364 +1,215 @@
-// ═══════════════════════════════════════════════════════════════════════════
-// Dream Maker Sniper — TradingView Strategy
-// Mirrors scripts/sniper.py (refiner branch) signal engine exactly.
-//
-// HOW TO USE
-// ──────────
-//  1. Open NSE:NIFTY or NSE:NIFTY50 on a 1-minute chart in TradingView.
-//  2. Add this script as a Strategy (Pine Editor → Add to chart).
-//  3. Toggle "Expiry Mode" on Tuesdays, off on Mon/Wed/Thu/Fri.
-//  4. Strategy Tester shows backtest P&L on NIFTY spot.
-//     Note: actual live trades are on ATM options via scripts/sniper.py.
-//     The % TP/SL here simulate option premium movement (not spot movement).
-//
-// SIGNALS EXPLAINED
-// ─────────────────
-//  Score ≥ 3 AND at least one PRIMARY trigger required to enter.
-//
-//  PRIMARY triggers (+2 each):
-//    EMA cross  — EMA9 crosses EMA21 this bar
-//    ORB break  — fresh break of 9:15–9:29 opening range
-//    VWAP rej   — bar touched VWAP (±0.15%) and closed away with full body
-//
-//  Supporting signals (+1 each):
-//    EMA align  — price on right side of EMA9/21 (no cross)
-//    ORB hold   — above/below OR but break was earlier
-//    HH/HL      — last 5 bars all made higher highs AND higher lows
-//    HTF bias   — 15m EMA9 > EMA21 (bull) or < EMA21 (bear)
-//
-// ═══════════════════════════════════════════════════════════════════════════
+// Dream Maker Sniper - TradingView Strategy
+// Mirrors scripts/sniper.py signal engine
 //@version=5
-strategy(
-    title            = "Dream Maker Sniper v3",
-    shorttitle       = "DM Sniper",
-    overlay          = true,
-    calc_on_every_tick = false,
-    process_orders_on_close = true,
-    default_qty_type = strategy.fixed,
-    default_qty_value = 1,
-    commission_type  = strategy.commission.percent,
-    commission_value = 0.03,
-    slippage         = 2
-)
+strategy("Dream Maker Sniper v3", "DM Sniper", overlay=true, calc_on_every_tick=false, process_orders_on_close=true, default_qty_type=strategy.fixed, default_qty_value=1, commission_type=strategy.commission.percent, commission_value=0.03, slippage=2)
 
-// ═══════════════════════════════════════════════════════════════════════════
 // INPUTS
-// ═══════════════════════════════════════════════════════════════════════════
+i_expiry_mode = input.bool(false, "Expiry Mode (Tuesday) TP=50% SL=18%", group="Mode")
+i_tp_auto = i_expiry_mode ? 50.0 : 35.0
+i_sl_auto = i_expiry_mode ? 18.0 : 15.0
+i_tp_override = input.float(0.0, "TP % override (0 = auto)", minval=0, step=1, group="Risk")
+i_sl_override = input.float(0.0, "SL % override (0 = auto)", minval=0, step=1, group="Risk")
+TP = (i_tp_override > 0 ? i_tp_override : i_tp_auto) / 100
+SL = (i_sl_override > 0 ? i_sl_override : i_sl_auto) / 100
+i_min_signal = input.int(3, "Min Score", minval=1, maxval=8, group="Signals")
+i_req_primary = input.bool(true, "Require PRIMARY trigger", group="Signals")
+i_req_htf = input.bool(true, "Require HTF alignment (15m EMA)", group="Signals")
+i_trail_activate = input.float(12, "Trail activates at % gain", minval=1, step=1, group="Trailing Stop")
+i_trail_peak = input.float(8, "Trail % below peak", minval=1, step=1, group="Trailing Stop")
+i_trail_be = input.float(2, "Breakeven buffer % above entry", minval=0, step=0.5, group="Trailing Stop")
+i_theta_h = input.int(14, "Theta Kill Hour", minval=9, maxval=15, group="Session (IST)")
+i_theta_m = input.int(15, "Theta Kill Minute", minval=0, maxval=59, group="Session (IST)")
+i_show_orb = input.bool(true, "Show OR levels", group="Display")
+i_show_emas = input.bool(true, "Show EMA 9/21", group="Display")
+i_show_vwap = input.bool(true, "Show VWAP", group="Display")
+i_show_bg = input.bool(true, "Show session background", group="Display")
+i_show_table = input.bool(true, "Show score table", group="Display")
 
-// Mode
-i_expiry_mode    = input.bool(false,   "Expiry Mode (Tuesday) — TP=50% SL=18%", group="Mode")
-
-// Risk — auto-set by mode, can override
-i_tp_auto        = i_expiry_mode ? 50.0 : 35.0
-i_sl_auto        = i_expiry_mode ? 18.0 : 15.0
-i_tp_override    = input.float(0.0, "TP % override (0 = auto from mode)",  minval=0, step=1, group="Risk")
-i_sl_override    = input.float(0.0, "SL % override (0 = auto from mode)",  minval=0, step=1, group="Risk")
-TP = ((i_tp_override > 0 ? i_tp_override : i_tp_auto) / 100)
-SL = ((i_sl_override > 0 ? i_sl_override : i_sl_auto) / 100)
-
-// Signals
-i_min_signal     = input.int(3,     "Min Score (≥3 recommended)",    minval=1, maxval=8, group="Signals")
-i_req_primary    = input.bool(true, "Require PRIMARY trigger",                            group="Signals")
-i_req_htf        = input.bool(true, "Require HTF alignment (15m EMA)",                   group="Signals")
-
-// Trailing stop
-i_trail_activate = input.float(12,  "Trail activates at % gain",     minval=1, step=1,   group="Trailing Stop")
-i_trail_peak     = input.float(8,   "Trail % below peak",            minval=1, step=1,   group="Trailing Stop")
-i_trail_be       = input.float(2,   "Breakeven buffer % above entry", minval=0, step=0.5, group="Trailing Stop")
-
-// Session (IST)
-i_theta_h        = input.int(14,    "Theta Kill — Hour",    minval=9,  maxval=15, group="Session (IST)")
-i_theta_m        = input.int(15,    "Theta Kill — Minute",  minval=0,  maxval=59, group="Session (IST)")
-
-// Display
-i_show_orb       = input.bool(true,  "Show OR levels",     group="Display")
-i_show_emas      = input.bool(true,  "Show EMA 9/21",      group="Display")
-i_show_vwap      = input.bool(true,  "Show VWAP",          group="Display")
-i_show_bg        = input.bool(true,  "Show session background", group="Display")
-i_show_table     = input.bool(true,  "Show score table",   group="Display")
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TIME HELPERS  (all IST)
-// ═══════════════════════════════════════════════════════════════════════════
+// TIME (IST)
 IST = "Asia/Kolkata"
+_h = hour(time, IST)
+_m = minute(time, IST)
+hm = _h * 60 + _m
+new_day = ta.change(dayofmonth(time, IST)) != 0
+orb_window = hm >= 9 * 60 + 15 and hm <= 9 * 60 + 29
+entry_window = hm >= 9 * 60 + 30 and hm < i_theta_h * 60 + i_theta_m
+past_theta = hm >= i_theta_h * 60 + i_theta_m
 
-_h  = hour(time,   IST)
-_m  = minute(time, IST)
-hm  = _h * 60 + _m
-
-new_day      = ta.change(dayofmonth(time, IST)) != 0
-orb_window   = hm >= 9*60+15 and hm <= 9*60+29
-entry_window = hm >= 9*60+30 and hm < i_theta_h*60+i_theta_m
-past_theta   = hm >= i_theta_h*60+i_theta_m
-
-// ═══════════════════════════════════════════════════════════════════════════
-// OPENING RANGE  9:15 – 9:29 IST  (15 one-minute bars)
-// ═══════════════════════════════════════════════════════════════════════════
+// OPENING RANGE 9:15-9:29 IST
 var float or_high = na
-var float or_low  = na
-var bool  or_set  = false
-
+var float or_low = na
+var bool or_set = false
 if new_day
     or_high := na
-    or_low  := na
-    or_set  := false
-
+    or_low := na
+    or_set := false
 if orb_window
     or_high := na(or_high) ? high : math.max(or_high, high)
-    or_low  := na(or_low)  ? low  : math.min(or_low,  low)
-
+    or_low := na(or_low) ? low : math.min(or_low, low)
 if not orb_window and not na(or_high) and not or_set
     or_set := true
 
-// ═══════════════════════════════════════════════════════════════════════════
 // INDICATORS
-// ═══════════════════════════════════════════════════════════════════════════
-ema9     = ta.ema(close, 9)
-ema21    = ta.ema(close, 21)
+ema9 = ta.ema(close, 9)
+ema21 = ta.ema(close, 21)
 vwap_val = ta.vwap(hlc3)
+[htf_e9, htf_e21] = request.security(syminfo.tickerid, "15", [ta.ema(close, 9), ta.ema(close, 21)], lookahead=barmerge.lookahead_off)
 
-// True 15m HTF EMAs — no lookahead
-[htf_e9, htf_e21] = request.security(
-     syminfo.tickerid, "15",
-     [ta.ema(close, 9), ta.ema(close, 21)],
-     lookahead=barmerge.lookahead_off)
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SIGNAL ENGINE  (mirrors scalping/core.py score_signal())
-// ═══════════════════════════════════════════════════════════════════════════
+// SIGNAL ENGINE
 bull_body = close > open
 bear_body = close < open
 
-// ── Compute each component score separately ──────────────────────────────
-
-// 1. EMA 9/21
-ema_bull = ema9 > ema21 and ema9[1] <= ema21[1] ? 2 :
-           ema9 > ema21 and close > ema9         ? 1 : 0
-ema_bear = ema9 < ema21 and ema9[1] >= ema21[1] ? 2 :
-           ema9 < ema21 and close < ema9         ? 1 : 0
+ema_bull = ema9 > ema21 and ema9[1] <= ema21[1] ? 2 : ema9 > ema21 and close > ema9 ? 1 : 0
+ema_bear = ema9 < ema21 and ema9[1] >= ema21[1] ? 2 : ema9 < ema21 and close < ema9 ? 1 : 0
 ema_bull_primary = ema_bull == 2
 ema_bear_primary = ema_bear == 2
 
-// 2. ORB
-orb_bull = or_set and close > or_high and bull_body and close[1] <= or_high ? 2 :
-           or_set and close > or_high and bull_body                          ? 1 : 0
-orb_bear = or_set and close < or_low  and bear_body and close[1] >= or_low  ? 2 :
-           or_set and close < or_low  and bear_body                         ? 1 : 0
+orb_bull = or_set and close > or_high and bull_body and close[1] <= or_high ? 2 : or_set and close > or_high and bull_body ? 1 : 0
+orb_bear = or_set and close < or_low and bear_body and close[1] >= or_low ? 2 : or_set and close < or_low and bear_body ? 1 : 0
 orb_bull_primary = orb_bull == 2
 orb_bear_primary = orb_bear == 2
 
-// 3. VWAP rejection (touch ±0.15% of VWAP + close away with body)
-vwap_bull_cond = math.abs(low  - vwap_val) / vwap_val < 0.0015 and close > vwap_val and bull_body
+vwap_bull_cond = math.abs(low - vwap_val) / vwap_val < 0.0015 and close > vwap_val and bull_body
 vwap_bear_cond = math.abs(high - vwap_val) / vwap_val < 0.0015 and close < vwap_val and bear_body
 vwap_bull = vwap_bull_cond ? 2 : 0
 vwap_bear = vwap_bear_cond ? 2 : 0
 vwap_bull_primary = vwap_bull == 2
 vwap_bear_primary = vwap_bear == 2
 
-// 4. HH/HL or LH/LL structure on last 5 bars
-hh_hl = high > high[1] and high[1] > high[2] and high[2] > high[3] and high[3] > high[4] and
-         low  > low[1]  and low[1]  > low[2]  and low[2]  > low[3]  and low[3]  > low[4]
-lh_ll = high < high[1] and high[1] < high[2] and high[2] < high[3] and high[3] < high[4] and
-         low  < low[1]  and low[1]  < low[2]  and low[2]  < low[3]  and low[3]  < low[4]
+hh_hl = high > high[1] and high[1] > high[2] and high[2] > high[3] and high[3] > high[4] and low > low[1] and low[1] > low[2] and low[2] > low[3] and low[3] > low[4]
+lh_ll = high < high[1] and high[1] < high[2] and high[2] < high[3] and high[3] < high[4] and low < low[1] and low[1] < low[2] and low[2] < low[3] and low[3] < low[4]
 struct_bull = hh_hl ? 1 : 0
 struct_bear = lh_ll ? 1 : 0
 
-// 5. HTF 15m bias
 htf_bull_bias = htf_e9 > htf_e21
 htf_bear_bias = htf_e9 < htf_e21
 htf_bull = htf_bull_bias ? 1 : 0
 htf_bear = htf_bear_bias ? 1 : 0
 
-// ── Total scores ──────────────────────────────────────────────────────────
 bull_score = ema_bull + orb_bull + vwap_bull + struct_bull + htf_bull
 bear_score = ema_bear + orb_bear + vwap_bear + struct_bear + htf_bear
-
 bull_has_primary = ema_bull_primary or orb_bull_primary or vwap_bull_primary
 bear_has_primary = ema_bear_primary or orb_bear_primary or vwap_bear_primary
+htf_ok_bull = not i_req_htf or htf_bull_bias or bull_score >= i_min_signal + 2
+htf_ok_bear = not i_req_htf or htf_bear_bias or bear_score >= i_min_signal + 2
 
-// ── HTF alignment gate ────────────────────────────────────────────────────
-// Blocked if HTF contradicts AND score is not overwhelmingly high
-htf_ok_bull = not i_req_htf or htf_bull_bias or (bull_score >= i_min_signal + 2)
-htf_ok_bear = not i_req_htf or htf_bear_bias or (bear_score >= i_min_signal + 2)
+long_ok = bull_score >= i_min_signal and bull_score > bear_score and (not i_req_primary or bull_has_primary) and htf_ok_bull and entry_window and or_set
+short_ok = bear_score >= i_min_signal and bear_score > bull_score and (not i_req_primary or bear_has_primary) and htf_ok_bear and entry_window and or_set
+no_pos = strategy.position_size == 0
 
-// ── Entry conditions ──────────────────────────────────────────────────────
-long_ok  = bull_score >= i_min_signal and bull_score > bear_score and
-            (not i_req_primary or bull_has_primary) and
-            htf_ok_bull and
-            entry_window and
-            or_set
-
-short_ok = bear_score >= i_min_signal and bear_score > bull_score and
-            (not i_req_primary or bear_has_primary) and
-            htf_ok_bear and
-            entry_window and
-            or_set
-
-no_pos   = strategy.position_size == 0
-
-// ═══════════════════════════════════════════════════════════════════════════
 // TRADE MANAGEMENT
-// ═══════════════════════════════════════════════════════════════════════════
 var float entry_px = na
-var float tp_px    = na
-var float sl_px    = na
-var float peak_px  = na
+var float tp_px = na
+var float sl_px = na
+var float peak_px = na
 
-// ── Long entry (CE) ───────────────────────────────────────────────────────
+ce_comment = "CE score=" + str.tostring(bull_score)
+pe_comment = "PE score=" + str.tostring(bear_score)
+
 if long_ok and no_pos
-    strategy.entry("CE", strategy.long,
-         comment = "CE  score=" + str.tostring(bull_score) +
-                   (ema_bull_primary   ? "  EMA_cross"  : ema_bull == 1  ? "  EMA_align"  : "") +
-                   (orb_bull_primary   ? "  ORB_break"  : orb_bull == 1  ? "  ORB_above"  : "") +
-                   (vwap_bull_primary  ? "  VWAP_rej"                                     : "") +
-                   (hh_hl              ? "  HH/HL"                                        : "") +
-                   (htf_bull_bias      ? "  HTF_bull"                                     : ""))
+    strategy.entry("CE", strategy.long, comment=ce_comment)
     entry_px := close
-    tp_px    := close * (1 + TP)
-    sl_px    := close * (1 - SL)
-    peak_px  := close
+    tp_px := close * (1 + TP)
+    sl_px := close * (1 - SL)
+    peak_px := close
 
-// ── Short entry (PE) ──────────────────────────────────────────────────────
 if short_ok and no_pos
-    strategy.entry("PE", strategy.short,
-         comment = "PE  score=" + str.tostring(bear_score) +
-                   (ema_bear_primary   ? "  EMA_cross"  : ema_bear == 1  ? "  EMA_align"  : "") +
-                   (orb_bear_primary   ? "  ORB_break"  : orb_bear == 1  ? "  ORB_below"  : "") +
-                   (vwap_bear_primary  ? "  VWAP_rej"                                     : "") +
-                   (lh_ll              ? "  LH/LL"                                        : "") +
-                   (htf_bear_bias      ? "  HTF_bear"                                     : ""))
+    strategy.entry("PE", strategy.short, comment=pe_comment)
     entry_px := close
-    tp_px    := close * (1 - TP)
-    sl_px    := close * (1 + SL)
-    peak_px  := close
+    tp_px := close * (1 - TP)
+    sl_px := close * (1 + SL)
+    peak_px := close
 
-// ── Update trailing SL while in trade ────────────────────────────────────
 trail_activate = i_trail_activate / 100
-trail_offset   = i_trail_peak     / 100
-be_buffer      = i_trail_be       / 100
+trail_offset = i_trail_peak / 100
+be_buffer = i_trail_be / 100
 
 if strategy.position_size > 0
-    peak_px  := math.max(peak_px, close)
-    gain_pct  = (peak_px - entry_px) / entry_px
+    peak_px := math.max(peak_px, close)
+    gain_pct = (peak_px - entry_px) / entry_px
     if gain_pct >= trail_activate
-        be_sl    = entry_px * (1 + be_buffer)
-        trail_sl = peak_px  * (1 - trail_offset)
-        new_sl   = math.min(math.max(be_sl, trail_sl), peak_px * 0.995)
-        sl_px    := math.max(sl_px, new_sl)
+        be_sl = entry_px * (1 + be_buffer)
+        trail_sl = peak_px * (1 - trail_offset)
+        new_sl = math.min(math.max(be_sl, trail_sl), peak_px * 0.995)
+        sl_px := math.max(sl_px, new_sl)
 
 if strategy.position_size < 0
-    peak_px  := math.min(peak_px, close)
-    gain_pct  = (entry_px - peak_px) / entry_px
+    peak_px := math.min(peak_px, close)
+    gain_pct = (entry_px - peak_px) / entry_px
     if gain_pct >= trail_activate
-        be_sl    = entry_px * (1 - be_buffer)
-        trail_sl = peak_px  * (1 + trail_offset)
-        new_sl   = math.max(math.min(be_sl, trail_sl), peak_px * 1.005)
-        sl_px    := math.min(sl_px, new_sl)
+        be_sl = entry_px * (1 - be_buffer)
+        trail_sl = peak_px * (1 + trail_offset)
+        new_sl = math.max(math.min(be_sl, trail_sl), peak_px * 1.005)
+        sl_px := math.min(sl_px, new_sl)
 
-// ── Apply TP / SL exits ───────────────────────────────────────────────────
 if strategy.position_size > 0
     strategy.exit("CE Exit", "CE", limit=tp_px, stop=sl_px, comment_profit="TP", comment_loss="SL/Trail")
 
 if strategy.position_size < 0
     strategy.exit("PE Exit", "PE", limit=tp_px, stop=sl_px, comment_profit="TP", comment_loss="SL/Trail")
 
-// ── Theta kill — force exit all ───────────────────────────────────────────
 if past_theta and strategy.position_size != 0
     strategy.close_all(comment="THETA KILL")
 
-// ═══════════════════════════════════════════════════════════════════════════
 // PLOTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-// EMAs
-plot(i_show_emas ? ema9  : na, "EMA 9",  color.new(color.blue,   15), 2)
+plot(i_show_emas ? ema9 : na, "EMA 9", color.new(color.blue, 15), 2)
 plot(i_show_emas ? ema21 : na, "EMA 21", color.new(color.orange, 15), 2)
-
-// VWAP
 plot(i_show_vwap ? vwap_val : na, "VWAP", color.new(color.purple, 15), 1, plot.style_stepline)
-
-// OR levels (extended across the day via stepline)
 plot(i_show_orb and or_set ? or_high : na, "OR High", color.new(color.green, 0), 2, plot.style_stepline)
-plot(i_show_orb and or_set ? or_low  : na, "OR Low",  color.new(color.red,   0), 2, plot.style_stepline)
-
-// TP / SL lines for active trade
+plot(i_show_orb and or_set ? or_low : na, "OR Low", color.new(color.red, 0), 2, plot.style_stepline)
 in_trade = strategy.position_size != 0
-plot(in_trade ? tp_px : na, "TP",       color.new(color.teal,   0), 1, plot.style_circles)
+plot(in_trade ? tp_px : na, "TP", color.new(color.teal, 0), 1, plot.style_circles)
 plot(in_trade ? sl_px : na, "SL/Trail", color.new(color.maroon, 0), 1, plot.style_circles)
 
-// Session backgrounds
-bgcolor(i_show_bg and orb_window   ? color.new(color.yellow, 93) : na, title="ORB Building")
-bgcolor(i_show_bg and entry_window ? color.new(color.green,  97) : na, title="Entry Window")
-bgcolor(i_show_bg and past_theta   ? color.new(color.red,    95) : na, title="Past Theta Kill")
+bgcolor(i_show_bg and orb_window ? color.new(color.yellow, 93) : na, title="ORB Building")
+bgcolor(i_show_bg and entry_window ? color.new(color.green, 97) : na, title="Entry Window")
+bgcolor(i_show_bg and past_theta ? color.new(color.red, 95) : na, title="Past Theta Kill")
 
-// ── Entry labels ──────────────────────────────────────────────────────────
 if long_ok and no_pos
-    label.new(bar_index, low * 0.9993,
-              "CE " + str.tostring(bull_score),
-              color     = color.new(color.green, 5),
-              textcolor = color.white,
-              style     = label.style_label_up,
-              size      = size.small)
+    label.new(bar_index, low * 0.9993, "CE " + str.tostring(bull_score), color=color.new(color.green, 5), textcolor=color.white, style=label.style_label_up, size=size.small)
 
 if short_ok and no_pos
-    label.new(bar_index, high * 1.0007,
-              "PE " + str.tostring(bear_score),
-              color     = color.new(color.red, 5),
-              textcolor = color.white,
-              style     = label.style_label_down,
-              size      = size.small)
+    label.new(bar_index, high * 1.0007, "PE " + str.tostring(bear_score), color=color.new(color.red, 5), textcolor=color.white, style=label.style_label_down, size=size.small)
 
-// ── Live score table ──────────────────────────────────────────────────────
+// SCORE TABLE
 var table tbl = table.new(position.top_right, 2, 11, bgcolor=color.new(color.black, 60), border_width=1, border_color=color.new(color.gray, 60))
 
 if i_show_table and barstate.islast
-    C_HDR  = color.new(color.gray,  30)
+    C_HDR = color.new(color.gray, 30)
     C_BULL = color.new(color.green, 30)
-    C_BEAR = color.new(color.red,   30)
-    C_NEU  = color.new(color.black, 70)
-    W      = color.white
-
-    table.cell(tbl, 0, 0,  "Component",    text_color=W, bgcolor=C_HDR, text_halign=text.align_left)
-    table.cell(tbl, 1, 0,  "Score",        text_color=W, bgcolor=C_HDR)
-
-    table.cell(tbl, 0, 1,  "EMA 9/21",     text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
-    table.cell(tbl, 1, 1,  str.tostring(ema_bull) + " / " + str.tostring(ema_bear),
-               text_color=ema_bull>0?color.green:ema_bear>0?color.red:W, bgcolor=C_NEU)
-
-    table.cell(tbl, 0, 2,  "ORB",          text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
-    table.cell(tbl, 1, 2,  str.tostring(orb_bull) + " / " + str.tostring(orb_bear),
-               text_color=orb_bull>0?color.green:orb_bear>0?color.red:W, bgcolor=C_NEU)
-
-    table.cell(tbl, 0, 3,  "VWAP rej",     text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
-    table.cell(tbl, 1, 3,  str.tostring(vwap_bull) + " / " + str.tostring(vwap_bear),
-               text_color=vwap_bull>0?color.green:vwap_bear>0?color.red:W, bgcolor=C_NEU)
-
-    table.cell(tbl, 0, 4,  "Structure",    text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
-    table.cell(tbl, 1, 4,  str.tostring(struct_bull) + " / " + str.tostring(struct_bear),
-               text_color=struct_bull>0?color.green:struct_bear>0?color.red:W, bgcolor=C_NEU)
-
-    table.cell(tbl, 0, 5,  "HTF 15m",      text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
-    table.cell(tbl, 1, 5,  str.tostring(htf_bull) + " / " + str.tostring(htf_bear),
-               text_color=htf_bull>0?color.green:htf_bear>0?color.red:W, bgcolor=C_NEU)
-
-    table.cell(tbl, 0, 6,  "TOTAL",        text_color=W, bgcolor=C_HDR, text_halign=text.align_left)
-    table.cell(tbl, 1, 6,  str.tostring(bull_score) + "B / " + str.tostring(bear_score) + "Be",
-               text_color=bull_score>bear_score?color.green:bear_score>bull_score?color.red:W, bgcolor=C_HDR)
-
-    table.cell(tbl, 0, 7,  "OR High",      text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
-    table.cell(tbl, 1, 7,  or_set ? str.tostring(math.round(or_high)) : "building",
-               text_color=W, bgcolor=C_NEU)
-
-    table.cell(tbl, 0, 8,  "OR Low",       text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
-    table.cell(tbl, 1, 8,  or_set ? str.tostring(math.round(or_low))  : "building",
-               text_color=W, bgcolor=C_NEU)
-
+    C_BEAR = color.new(color.red, 30)
+    C_NEU = color.new(color.black, 70)
+    W = color.white
+    ema_txt = str.tostring(ema_bull) + " / " + str.tostring(ema_bear)
+    orb_txt = str.tostring(orb_bull) + " / " + str.tostring(orb_bear)
+    vwap_txt = str.tostring(vwap_bull) + " / " + str.tostring(vwap_bear)
+    struct_txt = str.tostring(struct_bull) + " / " + str.tostring(struct_bear)
+    htf_txt = str.tostring(htf_bull) + " / " + str.tostring(htf_bear)
+    total_txt = str.tostring(bull_score) + "B / " + str.tostring(bear_score) + "Be"
+    or_high_txt = or_set ? str.tostring(math.round(or_high)) : "building"
+    or_low_txt = or_set ? str.tostring(math.round(or_low)) : "building"
     prim_ok = bull_score > bear_score ? bull_has_primary : bear_has_primary
-    table.cell(tbl, 0, 9,  "Primary",      text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
-    table.cell(tbl, 1, 9,  prim_ok ? "YES" : "NO",
-               text_color=prim_ok?color.green:color.red, bgcolor=C_NEU)
-
-    ready = (long_ok or short_ok)
-    table.cell(tbl, 0, 10, "SIGNAL",       text_color=W, bgcolor=ready?C_BULL:C_HDR, text_halign=text.align_left)
-    table.cell(tbl, 1, 10, ready ? (long_ok ? "CE " + str.tostring(bull_score) : "PE " + str.tostring(bear_score)) : "waiting",
-               text_color=W, bgcolor=ready?C_BULL:C_HDR)
+    ready = long_ok or short_ok
+    signal_txt = ready ? (long_ok ? "CE " + str.tostring(bull_score) : "PE " + str.tostring(bear_score)) : "waiting"
+    table.cell(tbl, 0, 0, "Component", text_color=W, bgcolor=C_HDR, text_halign=text.align_left)
+    table.cell(tbl, 1, 0, "Score", text_color=W, bgcolor=C_HDR)
+    table.cell(tbl, 0, 1, "EMA 9/21", text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
+    table.cell(tbl, 1, 1, ema_txt, text_color=ema_bull > 0 ? color.green : ema_bear > 0 ? color.red : W, bgcolor=C_NEU)
+    table.cell(tbl, 0, 2, "ORB", text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
+    table.cell(tbl, 1, 2, orb_txt, text_color=orb_bull > 0 ? color.green : orb_bear > 0 ? color.red : W, bgcolor=C_NEU)
+    table.cell(tbl, 0, 3, "VWAP rej", text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
+    table.cell(tbl, 1, 3, vwap_txt, text_color=vwap_bull > 0 ? color.green : vwap_bear > 0 ? color.red : W, bgcolor=C_NEU)
+    table.cell(tbl, 0, 4, "Structure", text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
+    table.cell(tbl, 1, 4, struct_txt, text_color=struct_bull > 0 ? color.green : struct_bear > 0 ? color.red : W, bgcolor=C_NEU)
+    table.cell(tbl, 0, 5, "HTF 15m", text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
+    table.cell(tbl, 1, 5, htf_txt, text_color=htf_bull > 0 ? color.green : htf_bear > 0 ? color.red : W, bgcolor=C_NEU)
+    table.cell(tbl, 0, 6, "TOTAL", text_color=W, bgcolor=C_HDR, text_halign=text.align_left)
+    table.cell(tbl, 1, 6, total_txt, text_color=bull_score > bear_score ? color.green : bear_score > bull_score ? color.red : W, bgcolor=C_HDR)
+    table.cell(tbl, 0, 7, "OR High", text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
+    table.cell(tbl, 1, 7, or_high_txt, text_color=W, bgcolor=C_NEU)
+    table.cell(tbl, 0, 8, "OR Low", text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
+    table.cell(tbl, 1, 8, or_low_txt, text_color=W, bgcolor=C_NEU)
+    table.cell(tbl, 0, 9, "Primary", text_color=W, bgcolor=C_NEU, text_halign=text.align_left)
+    table.cell(tbl, 1, 9, prim_ok ? "YES" : "NO", text_color=prim_ok ? color.green : color.red, bgcolor=C_NEU)
+    table.cell(tbl, 0, 10, "SIGNAL", text_color=W, bgcolor=ready ? C_BULL : C_HDR, text_halign=text.align_left)
+    table.cell(tbl, 1, 10, signal_txt, text_color=W, bgcolor=ready ? C_BULL : C_HDR)
