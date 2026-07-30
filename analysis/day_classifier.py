@@ -3,7 +3,7 @@
 Classifies the current trading day into one of 7 types based on:
   - Gap from previous close
   - Opening-range structure (first 15 min = 3×5m candles)
-  - OR range size relative to price
+  - Developing day range (for Range/Inside skip — see note below)
 
 Classification rules (derived from Jan–Jun 2026 backtest, 111 days):
 
@@ -20,24 +20,40 @@ Classification rules (derived from Jan–Jun 2026 backtest, 111 days):
 
 Key insight: NIFTY is a V-Reversal market 75% of the time.
 Range/Inside Days have 25% DirWR — premium decays, skip them.
+
+IMPORTANT — Range/Inside detection:
+  The backtest used FULL-DAY range (high-low) < 0.8% of prev_close.
+  That metric is unknown at the open. Using the 15-min Opening Range
+  with the same 0.8% threshold incorrectly blocks most normal days
+  (a quiet NIFTY open is often 0.3–0.6%). Live logic therefore:
+    - never blocks on OR range alone
+    - only blocks as Range/Inside after midday once the developing
+      day range is still < 0.8%
 """
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 from enum import Enum
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from models.orders import OHLCV
 from models.trade_plan import TradeDirection
 
 log = logging.getLogger("dream_maker.day_classifier")
 
+IST = ZoneInfo("Asia/Kolkata")
+
 # Thresholds (all as fractions of price)
 _GAP_THRESHOLD = 0.003        # 0.3% gap = meaningful gap
-_RANGE_DAY_THRESHOLD = 0.008  # OR range < 0.8% → likely range/inside day
+# Full-day range threshold from the backtest — NOT for Opening Range.
+_RANGE_DAY_THRESHOLD = 0.008  # developing day range < 0.8% → Range/Inside
 _MIN_OR_CANDLES = 3           # need ≥3 5m candles (15 min) to classify
+# Earliest IST time at which a quiet developing day may be blocked.
+# Before this, Range/Inside is unknowable — OR alone must not block.
+_RANGE_BLOCK_AFTER_IST = time(11, 0)
 
 
 class DayType(str, Enum):
@@ -116,12 +132,16 @@ def _gap_direction(gap_pct: float) -> str:
 def classify(
     today_candles: list[OHLCV],
     prev_close: float,
+    *,
+    now_ist: datetime | None = None,
 ) -> DayClassification:
     """Classify the current trading day.
 
     Args:
         today_candles: 5-min candles for today so far (sorted oldest→newest).
         prev_close: previous trading day's closing price.
+        now_ist: current time in IST (injectable for tests). Used only for the
+            midday developing-range Range/Inside check.
 
     Returns:
         DayClassification with day_type + allowed directions.
@@ -148,8 +168,23 @@ def classify(
     is_gap_day = gap_dir != "flat"
     bullish_structure = _or_structure_is_bullish(or_candles)
 
-    # ── Range/Inside Day gate (25% DirWR — always skip) ──
-    if or_range_pct < _RANGE_DAY_THRESHOLD:
+    # ── Range/Inside Day gate (matches backtest: FULL day range, not OR) ──
+    # Only evaluate after midday once enough of the session has printed.
+    # A quiet 15-min OR is normal and must NOT hard-block the day.
+    now = now_ist or datetime.now(IST)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=IST)
+    else:
+        now = now.astimezone(IST)
+
+    day_high = max(c.high for c in today_candles)
+    day_low = min(c.low for c in today_candles)
+    day_range_pct = (day_high - day_low) / prev_close if prev_close else 0.0
+
+    if (
+        now.timetz().replace(tzinfo=None) >= _RANGE_BLOCK_AFTER_IST
+        and day_range_pct < _RANGE_DAY_THRESHOLD
+    ):
         classification = DayClassification(
             day_type=DayType.RANGE_INSIDE,
             allowed_directions=None,
@@ -158,12 +193,14 @@ def classify(
             is_gap_day=is_gap_day,
             bullish_or_structure=bullish_structure,
             reason=(
-                f"Range/Inside Day — OR range {or_range_pct:.2%} < {_RANGE_DAY_THRESHOLD:.2%}. "
+                f"Range/Inside Day — developing day range {day_range_pct:.2%} "
+                f"< {_RANGE_DAY_THRESHOLD:.2%} after {_RANGE_BLOCK_AFTER_IST.strftime('%H:%M')} IST. "
                 "DirWR 25%: no trades."
             ),
         )
         log.info(
-            "Day classified: RANGE_INSIDE | OR range %.2f%% | BLOCKED",
+            "Day classified: RANGE_INSIDE | day range %.2f%% | OR %.2f%% | BLOCKED",
+            day_range_pct * 100,
             or_range_pct * 100,
         )
         return classification
@@ -185,7 +222,7 @@ def classify(
             bullish_or_structure=bullish_structure,
             reason=(
                 f"Gap {gap_dir} {gap_pct:.2%} | OR structure={'bullish' if bullish_structure else 'bearish'} "
-                f"| OR range {or_range_pct:.2%} | DirWR 100%"
+                f"| OR range {or_range_pct:.2%} | day range {day_range_pct:.2%} | DirWR 100%"
             ),
         )
     else:
@@ -209,28 +246,30 @@ def classify(
             bullish_or_structure=bullish_structure,
             reason=(
                 f"No gap ({gap_pct:.2%}) | OR structure={'bullish' if bullish_structure else 'bearish'} "
-                f"| OR range {or_range_pct:.2%}"
+                f"| OR range {or_range_pct:.2%} | day range {day_range_pct:.2%}"
             ),
         )
 
     log.info(
-        "Day classified: %s | gap=%.2f%% | OR range=%.2f%% | allowed=%s",
+        "Day classified: %s | gap=%.2f%% | OR range=%.2f%% | day range=%.2f%% | allowed=%s",
         classification.day_type.value,
         gap_pct * 100,
         or_range_pct * 100,
+        day_range_pct * 100,
         [d.value for d in (classification.allowed_directions or [])],
     )
     return classification
 
 
 class DayGate:
-    """Stateful wrapper: classifies once per calendar day, caches result.
+    """Stateful wrapper around `classify()` with a careful cache.
 
-    The gate fetches today's 5-min candles and yesterday's daily close
-    from the broker, then delegates to `classify()`.
-
-    Cache is reset at midnight — subsequent calls on the same date
-    return the cached result without hitting the broker.
+    Cache rules:
+      - UNKNOWN is never cached (re-fetch until the Opening Range forms).
+      - Before 11:00 IST, directional classifications are cached but will be
+        re-evaluated after midday so a quiet developing day can still be
+        blocked as Range/Inside (matching the full-day-range backtest rule).
+      - RANGE_INSIDE and any post-midday classification are final for the day.
     """
 
     def __init__(self, broker, enabled: bool = True) -> None:
@@ -238,14 +277,16 @@ class DayGate:
         self._enabled = enabled
         self._cached_date: Optional[date] = None
         self._cached_result: Optional[DayClassification] = None
+        self._cached_after_midday: bool = False
 
     def reset(self) -> None:
         """Force re-classification on next check (e.g. after new day starts)."""
         self._cached_date = None
         self._cached_result = None
+        self._cached_after_midday = False
 
     def classify_today(self) -> DayClassification:
-        """Return today's classification. Uses cache if already computed today."""
+        """Return today's classification, refreshing when the cache is stale."""
         if not self._enabled:
             return DayClassification(
                 day_type=DayType.UNKNOWN,
@@ -257,17 +298,30 @@ class DayGate:
                 reason="Day gate disabled",
             )
 
-        today = datetime.now().date()
-        if self._cached_date == today and self._cached_result is not None:
+        now_ist = datetime.now(IST)
+        today = now_ist.date()
+        past_midday = now_ist.timetz().replace(tzinfo=None) >= _RANGE_BLOCK_AFTER_IST
+
+        if (
+            self._cached_date == today
+            and self._cached_result is not None
+            and self._cached_result.day_type != DayType.UNKNOWN
+            and (self._cached_after_midday or not past_midday
+                 or self._cached_result.day_type == DayType.RANGE_INSIDE)
+        ):
             return self._cached_result
 
-        result = self._fetch_and_classify()
-        self._cached_date = today
-        self._cached_result = result
+        result = self._fetch_and_classify(now_ist=now_ist)
+        # Never pin UNKNOWN — keep polling until OR candles arrive.
+        if result.day_type != DayType.UNKNOWN:
+            self._cached_date = today
+            self._cached_result = result
+            self._cached_after_midday = past_midday
         return result
 
-    def _fetch_and_classify(self) -> DayClassification:
+    def _fetch_and_classify(self, *, now_ist: datetime | None = None) -> DayClassification:
         """Fetch candles from broker and classify."""
+        now_ist = now_ist or datetime.now(IST)
         try:
             # Use the underlying NIFTY index (securityId 13) for clean daily data
             daily_candles = self._broker.get_ohlcv("NIFTY50IDX", "1d", 5)
@@ -277,24 +331,31 @@ class DayGate:
 
             prev_close = daily_candles[-2].close  # yesterday's close
 
-            today_5m_raw = self._broker.get_ohlcv("NIFTY50IDX", "5m", 20)
+            # Need enough bars for OR + developing day range after midday.
+            today_5m_raw = self._broker.get_ohlcv("NIFTY50IDX", "5m", 80)
             if not today_5m_raw:
                 log.warning("Day gate: no 5m candles yet — gate open")
                 return _unknown_result("No intraday candles yet")
 
-            # Filter to today's candles only — the batch may include
-            # yesterday's closing bars at the front which would corrupt OR calc.
-            today_date = datetime.now().date()
-            today_5m = [
-                c for c in today_5m_raw
-                if hasattr(c.timestamp, "date") and c.timestamp.date() == today_date
-            ]
+            # Filter to today's candles only (IST calendar date — NSE session).
+            today_date = now_ist.date()
+            today_5m = []
+            for c in today_5m_raw:
+                ts = c.timestamp
+                if not hasattr(ts, "date"):
+                    continue
+                if ts.tzinfo is None:
+                    ts_date = ts.date()
+                else:
+                    ts_date = ts.astimezone(IST).date()
+                if ts_date == today_date:
+                    today_5m.append(c)
 
             if not today_5m:
                 log.warning("Day gate: no candles for today yet — gate open")
                 return _unknown_result("No candles for today yet")
 
-            return classify(today_5m, prev_close)
+            return classify(today_5m, prev_close, now_ist=now_ist)
 
         except Exception as exc:
             log.warning("Day gate fetch failed (%s) — gate open", exc)
