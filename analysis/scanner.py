@@ -68,29 +68,35 @@ class WatchlistScanner:
         """Scan for setups. Returns at most 1 result (the best setup per cycle).
 
         Quality gates applied in order:
-        0. Day-type gate (Range/Inside Day → skip; directional lock applied)
+        0. Day-type gate (Range/Inside Day → skip for ORB/sweep; bypassed for quad_stoch_div)
         1. Session check (trade cap, profit target, loss guard)
-        2. Technical analysis (stacked sweep)
-        3. Direction check against day-type lock
+        2. Technical analysis (cfg.active_strategy only — no day-type remapping)
+        3. Direction check against day-type lock (stacked_sweep only)
         4. Entry precision checks (pullback to EMA, volume surge)
         5. Setup scoring (must exceed quality threshold)
         6. Best-setup tracking (only trade if it's the best seen today)
         """
         # ── Gate 0: Day-type gate ──
+        # active_strategy is exclusive — day type never switches strategies.
+        # quad_stoch_div ignores day-gate blocks and direction locks entirely.
+        strategy_name = self.cfg.active_strategy
+        bypass_day_gate = strategy_name == "quad_stoch_div"
+
         day_class = self._day_gate.classify_today()
 
         # Notify day classification once per calendar day
         from datetime import date as _date
         _today = _date.today()
         if self._day_classified_date != _today and self.notifier:
-            _BREAKOUT = {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"}
-            strategy_name = "bb_orb_breakout" if day_class.day_type.value in _BREAKOUT else self.cfg.active_strategy
             allowed_str = (
-                day_class.allowed_directions[0].value
-                if day_class.allowed_directions and len(day_class.allowed_directions) == 1
-                else ("none" if day_class.is_blocked else "any")
+                "any" if bypass_day_gate
+                else (
+                    day_class.allowed_directions[0].value
+                    if day_class.allowed_directions and len(day_class.allowed_directions) == 1
+                    else ("none" if day_class.is_blocked else "any")
+                )
             )
-            if day_class.is_blocked:
+            if day_class.is_blocked and not bypass_day_gate:
                 self.notifier.on_indicator_event("day_blocked", self.cfg.trading_symbol, {
                     "reason": day_class.reason,
                 })
@@ -110,7 +116,7 @@ class WatchlistScanner:
             self._day_classified_today = True
             self._day_classified_date = _today
 
-        if day_class.is_blocked:
+        if day_class.is_blocked and not bypass_day_gate:
             log.info("Day gate blocked: %s — %s", day_class.day_type.value, day_class.reason)
             return []
 
@@ -125,8 +131,9 @@ class WatchlistScanner:
 
         # Inject day context onto the scanner (not cfg — cfg is frozen).
         # Pipeline reads these via getattr(self.cfg, '_day_type', ...) fallback.
-        self._day_type = day_class.day_type.value
-        self._allowed_direction = (
+        # Stoch strategy: never lock direction / never feed day_type into routing.
+        self._day_type = "unknown" if bypass_day_gate else day_class.day_type.value
+        self._allowed_direction = None if bypass_day_gate else (
             day_class.allowed_directions[0]
             if day_class.allowed_directions and len(day_class.allowed_directions) == 1
             else None
@@ -135,10 +142,11 @@ class WatchlistScanner:
         object.__setattr__(self.cfg, "_day_type", self._day_type)
         object.__setattr__(self.cfg, "_allowed_direction", self._allowed_direction)
         log.info(
-            "Day gate: %s → strategy=%s direction=%s",
+            "Day gate: %s → strategy=%s direction=%s%s",
             day_class.day_type.value,
-            "bb_orb_breakout" if self._day_type in {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"} else self.cfg.active_strategy,
+            strategy_name,
             self._allowed_direction.value if self._allowed_direction else "any",
+            " (day gate bypassed)" if bypass_day_gate else "",
         )
 
         try:

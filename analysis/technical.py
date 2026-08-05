@@ -1097,23 +1097,22 @@ def analyze_technical(
     day_type: str = "unknown",
     allowed_direction: TradeDirection | None = None,
 ) -> TechnicalContext | None:
-    """Route to the correct strategy based on day type / active_strategy.
+    """Route exclusively by active_strategy — no day-type strategy switching.
 
     Default strategy: quad_stoch_div (Holy Grail / HPS divergence).
 
-    Day type routing (still overrides on breakout days):
-      Trend Up/Down, Gap days → bb_orb_breakout  (momentum breakout)
-
-    Force a strategy with active_strategy=
+    active_strategy selects exactly one analyzer:
       'quad_stoch_div' | 'stacked_sweep' | 'bb_orb_breakout' | 'vwap_pullback'
+
+    day_type is accepted for pipeline compatibility / logging but never
+    overrides the strategy. ORB runs only when active_strategy == 'bb_orb_breakout'.
     """
+    _ = day_type  # unused — kept for call-site compatibility
+
     if len(htf_candles) < 20 or len(ltf_candles) < 20:
         return None
 
-    # ── Determine which strategy to run ──────────────────────────────────────
-    _BREAKOUT_TYPES = {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"}
-
-    if active_strategy == "bb_orb_breakout" or day_type in _BREAKOUT_TYPES:
+    if active_strategy == "bb_orb_breakout":
         if allowed_direction is None:
             return None  # breakout requires a locked direction from day gate
         return _analyze_bb_orb_breakout(

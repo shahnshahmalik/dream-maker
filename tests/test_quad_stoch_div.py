@@ -209,3 +209,28 @@ def test_analyze_technical_quad_returns_none_on_no_signal():
     flat_ltf = [_c(24100, 24105, 24095, 24100, i=i) for i in range(90)]
     ctx = analyze_technical(flat_htf, flat_ltf, active_strategy="quad_stoch_div")
     assert ctx is None
+
+
+def test_breakout_day_type_does_not_override_quad_stoch():
+    """Trend/gap day_type must NOT force ORB when active_strategy is quad_stoch_div."""
+    htf = _uptrend_htf()
+    ltf = _bullish_div_ltf()
+    ctx = analyze_technical(
+        htf,
+        ltf,
+        active_strategy="quad_stoch_div",
+        day_type="trend_up",
+        allowed_direction=TradeDirection.LONG,
+    )
+    assert ctx is not None
+    assert ctx.setup_type == SetupType.QUAD_STOCH_DIV
+    assert ctx.setup_type != SetupType.BB_ORB_BREAKOUT
+
+
+def test_default_active_strategy_is_quad_stoch():
+    """Omitting active_strategy should still run quad stoch (not ORB/sweep)."""
+    htf = _uptrend_htf()
+    ltf = _bullish_div_ltf()
+    ctx = analyze_technical(htf, ltf, day_type="gap_up_trend", allowed_direction=TradeDirection.LONG)
+    assert ctx is not None
+    assert ctx.setup_type == SetupType.QUAD_STOCH_DIV
