@@ -84,7 +84,7 @@ class WatchlistScanner:
         _today = _date.today()
         if self._day_classified_date != _today and self.notifier:
             _BREAKOUT = {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"}
-            strategy_name = "bb_orb_breakout" if day_class.day_type.value in _BREAKOUT else "stacked_sweep"
+            strategy_name = "bb_orb_breakout" if day_class.day_type.value in _BREAKOUT else self.cfg.active_strategy
             allowed_str = (
                 day_class.allowed_directions[0].value
                 if day_class.allowed_directions and len(day_class.allowed_directions) == 1

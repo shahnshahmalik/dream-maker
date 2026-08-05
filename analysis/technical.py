@@ -1,4 +1,4 @@
-"""Technical analysis — stacked sweep strategy (primary) and supporting utilities."""
+"""Technical analysis — strategy implementations and supporting utilities."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ class SetupType(str, Enum):
     STACKED_SWEEP = "stacked_sweep"      # V-Reversal days — liquidity sweep reversal
     BB_ORB_BREAKOUT = "bb_orb_breakout"  # Trend/Gap days — BB + ORB momentum
     VWAP_PULLBACK = "vwap_pullback"      # Pullback-to-VWAP in trend direction
+    QUAD_STOCH_DIV = "quad_stoch_div"    # Quad stochastic divergence (Holy Grail / HPS)
 
 
 from analysis.liquidity_sweep import (
@@ -638,6 +639,451 @@ def _analyze_vwap_pullback(
     )
 
 
+def _stochastic(
+    df: pd.DataFrame,
+    k_period: int,
+    d_period: int,
+    *,
+    smooth: int = 1,
+) -> tuple[pd.Series, pd.Series]:
+    """Classic stochastic %K / %D (TradingView-compatible).
+
+    raw_%K = 100 * (close - lowest_low) / (highest_high - lowest_low)
+    %K     = SMA(raw_%K, smooth)   # smooth=1 → unsmoothed / Full
+    %D     = SMA(%K, d_period)
+    """
+    lowest = df["low"].rolling(k_period).min()
+    highest = df["high"].rolling(k_period).max()
+    denom = (highest - lowest).replace(0, pd.NA)
+    raw_k = 100.0 * (df["close"] - lowest) / denom
+    k = raw_k.rolling(smooth).mean() if smooth > 1 else raw_k
+    d = k.rolling(d_period).mean()
+    return k, d
+
+
+def _swing_low_indices(lows: pd.Series, order: int = 2) -> list[int]:
+    """Indices of local swing lows (strict local minima over ±order bars)."""
+    vals = lows.to_numpy(dtype=float)
+    n = len(vals)
+    out: list[int] = []
+    for i in range(order, n - order):
+        left_ok = all(vals[i] <= vals[i - j] for j in range(1, order + 1))
+        right_ok = all(vals[i] < vals[i + j] for j in range(1, order + 1))
+        if left_ok and right_ok:
+            out.append(i)
+    return out
+
+
+def _swing_high_indices(highs: pd.Series, order: int = 2) -> list[int]:
+    """Indices of local swing highs (strict local maxima over ±order bars)."""
+    vals = highs.to_numpy(dtype=float)
+    n = len(vals)
+    out: list[int] = []
+    for i in range(order, n - order):
+        left_ok = all(vals[i] >= vals[i - j] for j in range(1, order + 1))
+        right_ok = all(vals[i] > vals[i + j] for j in range(1, order + 1))
+        if left_ok and right_ok:
+            out.append(i)
+    return out
+
+
+def _is_bullish_reversal_candle(c: OHLCV) -> bool:
+    """Hammer / rejection wick: lower wick >= body, closes in upper half."""
+    body = abs(c.close - c.open)
+    lower_wick = min(c.open, c.close) - c.low
+    upper_wick = c.high - max(c.open, c.close)
+    rng = c.high - c.low
+    if rng <= 0:
+        return False
+    closes_upper = c.close >= c.low + rng * 0.55
+    return lower_wick >= max(body, rng * 0.35) and lower_wick >= upper_wick and closes_upper
+
+
+def _is_bearish_reversal_candle(c: OHLCV) -> bool:
+    """Shooting star / rejection wick: upper wick >= body, closes in lower half."""
+    body = abs(c.close - c.open)
+    lower_wick = min(c.open, c.close) - c.low
+    upper_wick = c.high - max(c.open, c.close)
+    rng = c.high - c.low
+    if rng <= 0:
+        return False
+    closes_lower = c.close <= c.high - rng * 0.55
+    return upper_wick >= max(body, rng * 0.35) and upper_wick >= lower_wick and closes_lower
+
+
+def _organized_pullback(
+    df: pd.DataFrame,
+    start: int,
+    end: int,
+    *,
+    atr: float,
+    max_chaos_atr: float = 2.5,
+) -> bool:
+    """Reject chaotic Stage1→Stage2 drops (single panic candle or huge bar).
+
+    Interior bars only — Stage 1/2 extremes often carry long rejection wicks
+    by design and must not fail the organization filter.
+    """
+    if end - start < 2 or atr <= 0:
+        return False
+    segment = df.iloc[start + 1 : end]
+    if segment.empty:
+        return True
+    max_bar_range = float((segment["high"] - segment["low"]).max())
+    return max_bar_range <= atr * max_chaos_atr
+
+
+@dataclass
+class _StochDivSignal:
+    direction: TradeDirection
+    stage1_idx: int
+    stage2_idx: int
+    stage1_price: float
+    stage2_price: float
+    stage1_stoch: float
+    stage2_stoch: float
+    confirmations: list[str]
+    strength: float
+
+
+def detect_quad_stoch_divergence(
+    ltf_candles: list[OHLCV],
+    *,
+    require_lower_extreme: bool = False,
+    min_bars_between: int = 3,
+    max_bars_between: int = 20,
+    lookback: int = 50,
+    swing_order: int = 2,
+) -> _StochDivSignal | None:
+    """Detect bullish/bearish quad-stochastic divergence ending near the last bar.
+
+    Bullish (mirror for bearish):
+      Stage 1 — all 4 stochs < 20 near a swing low; then bounce above 20.
+      Stage 2 — price equal/lower low while fast (9,3) holds > 20 and makes a
+                higher stoch low; entry when 9-3 turns up off that low.
+
+    Tunables:
+      require_lower_extreme — if True, Stage 2 must be strictly lower/higher
+                              (not equal) than Stage 1 price extreme.
+    """
+    if len(ltf_candles) < 80:
+        return None
+
+    df = _ohlcv_to_df(ltf_candles)
+    k9, d9 = _stochastic(df, 9, 3)
+    k14, _ = _stochastic(df, 14, 3)
+    k40, _ = _stochastic(df, 40, 4)
+    k60, _ = _stochastic(df, 60, 10, smooth=1)
+
+    # Need valid stoch readings
+    if any(pd.isna(x.iloc[-1]) for x in (k9, d9, k14, k40, k60)):
+        return None
+
+    h, l, pc = df["high"], df["low"], df["close"].shift(1)
+    tr = pd.concat([(h - l), (h - pc).abs(), (l - pc).abs()], axis=1).max(axis=1)
+    atr = float(tr.ewm(span=14, adjust=False).mean().iloc[-1])
+    if atr <= 0:
+        return None
+
+    n = len(df)
+    start = max(swing_order + 1, n - lookback)
+    end_scan = n - swing_order  # leave room for swing confirmation
+
+    # Fast stoch must be turning up/down on the latest bar
+    k_now = float(k9.iloc[-1])
+    k_prev = float(k9.iloc[-2])
+    d_now = float(d9.iloc[-1])
+    bull_turn = k_now > k_prev and k_now >= d_now
+    bear_turn = k_now < k_prev and k_now <= d_now
+    if not bull_turn and not bear_turn:
+        return None
+
+    def _all_oversold_near(idx: int, window: int = 4) -> bool:
+        lo = max(0, idx - window)
+        hi = min(n, idx + 1)
+        for i in range(lo, hi):
+            vals = [k9.iloc[i], k14.iloc[i], k40.iloc[i], k60.iloc[i]]
+            if any(pd.isna(v) for v in vals):
+                continue
+            if all(float(v) < 20.0 for v in vals):
+                return True
+        return False
+
+    def _all_overbought_near(idx: int, window: int = 4) -> bool:
+        lo = max(0, idx - window)
+        hi = min(n, idx + 1)
+        for i in range(lo, hi):
+            vals = [k9.iloc[i], k14.iloc[i], k40.iloc[i], k60.iloc[i]]
+            if any(pd.isna(v) for v in vals):
+                continue
+            if all(float(v) > 80.0 for v in vals):
+                return True
+        return False
+
+    def _bounced_above_20(s1: int, s2: int) -> bool:
+        mid = k9.iloc[s1 : s2 + 1]
+        return bool((mid > 20.0).any())
+
+    def _dipped_below_80(s1: int, s2: int) -> bool:
+        mid = k9.iloc[s1 : s2 + 1]
+        return bool((mid < 80.0).any())
+
+    # ── Bullish path ──────────────────────────────────────────────────────────
+    if bull_turn:
+        lows = _swing_low_indices(df["low"], order=swing_order)
+        lows = [i for i in lows if start <= i < end_scan]
+        # Prefer Stage 2 near the end (within last few bars before turn)
+        for j in range(len(lows) - 1, 0, -1):
+            s2 = lows[j]
+            s1 = lows[j - 1]
+            # Stage 2 should be recent relative to the turn bar
+            if s2 < n - 6:
+                continue
+            gap = s2 - s1
+            if gap < min_bars_between or gap > max_bars_between:
+                continue
+
+            p1 = float(df["low"].iloc[s1])
+            p2 = float(df["low"].iloc[s2])
+            if require_lower_extreme:
+                if p2 >= p1:
+                    continue
+            elif p2 > p1:
+                continue
+
+            sk1 = float(k9.iloc[s1])
+            sk2 = float(k9.iloc[s2])
+            if pd.isna(sk1) or pd.isna(sk2):
+                continue
+            # Stage 2 fast stoch holds above 20 and prints a higher low
+            if sk2 <= 20.0 or sk2 <= sk1:
+                continue
+            if not _all_oversold_near(s1):
+                continue
+            if not _bounced_above_20(s1, s2):
+                continue
+            if not _organized_pullback(df, s1, s2, atr=atr):
+                continue
+
+            conf = ["stoch_div_bull", "quad_oversold_s1", "fast_holds_above_20"]
+            strength = 0.55
+            if sk2 - sk1 >= 5.0:
+                strength += 0.08
+                conf.append("strong_stoch_hl")
+            if float(k14.iloc[s2]) > float(k14.iloc[s1]) if not pd.isna(k14.iloc[s1]) else False:
+                strength += 0.05
+                conf.append("k14_confirms")
+            c2 = ltf_candles[s2]
+            if _is_bullish_reversal_candle(c2):
+                strength += 0.08
+                conf.append("reversal_candle")
+
+            return _StochDivSignal(
+                direction=TradeDirection.LONG,
+                stage1_idx=s1,
+                stage2_idx=s2,
+                stage1_price=p1,
+                stage2_price=p2,
+                stage1_stoch=sk1,
+                stage2_stoch=sk2,
+                confirmations=conf,
+                strength=min(1.0, strength),
+            )
+
+    # ── Bearish path ──────────────────────────────────────────────────────────
+    if bear_turn:
+        highs = _swing_high_indices(df["high"], order=swing_order)
+        highs = [i for i in highs if start <= i < end_scan]
+        for j in range(len(highs) - 1, 0, -1):
+            s2 = highs[j]
+            s1 = highs[j - 1]
+            if s2 < n - 6:
+                continue
+            gap = s2 - s1
+            if gap < min_bars_between or gap > max_bars_between:
+                continue
+
+            p1 = float(df["high"].iloc[s1])
+            p2 = float(df["high"].iloc[s2])
+            if require_lower_extreme:
+                if p2 <= p1:
+                    continue
+            elif p2 < p1:
+                continue
+
+            sk1 = float(k9.iloc[s1])
+            sk2 = float(k9.iloc[s2])
+            if pd.isna(sk1) or pd.isna(sk2):
+                continue
+            if sk2 >= 80.0 or sk2 >= sk1:
+                continue
+            if not _all_overbought_near(s1):
+                continue
+            if not _dipped_below_80(s1, s2):
+                continue
+            if not _organized_pullback(df, s1, s2, atr=atr):
+                continue
+
+            conf = ["stoch_div_bear", "quad_overbought_s1", "fast_holds_below_80"]
+            strength = 0.55
+            if sk1 - sk2 >= 5.0:
+                strength += 0.08
+                conf.append("strong_stoch_lh")
+            if float(k14.iloc[s2]) < float(k14.iloc[s1]) if not pd.isna(k14.iloc[s1]) else False:
+                strength += 0.05
+                conf.append("k14_confirms")
+            c2 = ltf_candles[s2]
+            if _is_bearish_reversal_candle(c2):
+                strength += 0.08
+                conf.append("reversal_candle")
+
+            return _StochDivSignal(
+                direction=TradeDirection.SHORT,
+                stage1_idx=s1,
+                stage2_idx=s2,
+                stage1_price=p1,
+                stage2_price=p2,
+                stage1_stoch=sk1,
+                stage2_stoch=sk2,
+                confirmations=conf,
+                strength=min(1.0, strength),
+            )
+
+    return None
+
+
+def _analyze_quad_stoch_div(
+    htf_candles: list[OHLCV],
+    ltf_candles: list[OHLCV],
+    *,
+    min_rr: float,
+    max_sl_pct: float,
+    allowed_direction: TradeDirection | None = None,
+    require_lower_extreme: bool = False,
+) -> TechnicalContext | None:
+    """Quad Stochastic Divergence — Holy Grail / HPS momentum divergence.
+
+    Four stacked stochastics (9-3, 14-3, 40-4, 60-10) + EMA/VWAP context.
+    Triggers when price makes an equal/lower low but fast stoch makes a higher
+    low while holding above 20 (exhaustion → reversal). Mirror for shorts.
+
+    Entry: close of the bar where 9-3 turns up off the Stage 2 higher stoch low.
+    SL:    1–2 ticks (ATR-scaled buffer) beyond the Stage 2 extreme.
+    TP1:   entry ± sl_dist × min_rr  (proxy for first partial near stoch 80).
+    TP2:   1.5× that distance for trend-context runners.
+
+    Exit guidance (encoded in confirmations / bias_source):
+      - Counter-trend (below 200 EMA): take profits fast, tighten to BE.
+      - With-trend (above 200 EMA / VWAP): trail using 60-10 rotations.
+    """
+    if len(ltf_candles) < 80 or len(htf_candles) < 20:
+        return None
+
+    signal = detect_quad_stoch_divergence(
+        ltf_candles,
+        require_lower_extreme=require_lower_extreme,
+    )
+    if signal is None:
+        return None
+
+    if allowed_direction is not None and signal.direction != allowed_direction:
+        return None
+
+    htf_df = _ohlcv_to_df(htf_candles)
+    ltf_df = _ohlcv_to_df(ltf_candles)
+    htf_trend = detect_trend(htf_df)
+    ltf_trend = detect_trend(ltf_df)
+
+    entry = float(ltf_candles[-1].close)
+    max_sl_abs = entry * max(0.05, max_sl_pct) / 100.0
+
+    h, l, pc = ltf_df["high"], ltf_df["low"], ltf_df["close"].shift(1)
+    tr = pd.concat([(h - l), (h - pc).abs(), (l - pc).abs()], axis=1).max(axis=1)
+    atr = float(tr.ewm(span=14, adjust=False).mean().iloc[-1])
+    tick_buf = max(atr * 0.05, entry * 0.00005)  # ~1–2 ticks scaled to ATR
+
+    if signal.direction == TradeDirection.LONG:
+        raw_sl = signal.stage2_price - tick_buf
+        stop_loss = max(raw_sl, entry - max_sl_abs)
+        if stop_loss >= entry:
+            return None
+        sl_dist = entry - stop_loss
+        tp1 = entry + sl_dist * min_rr
+        tp2 = entry + sl_dist * min_rr * 1.5
+    else:
+        raw_sl = signal.stage2_price + tick_buf
+        stop_loss = min(raw_sl, entry + max_sl_abs)
+        if stop_loss <= entry:
+            return None
+        sl_dist = stop_loss - entry
+        tp1 = entry - sl_dist * min_rr
+        tp2 = entry - sl_dist * min_rr * 1.5
+
+    if sl_dist <= 0 or tp1 <= 0:
+        return None
+
+    rr = abs(tp1 - entry) / sl_dist
+
+    ema200 = _ema(htf_df["close"], min(200, len(htf_df)))
+    above_200 = float(htf_df["close"].iloc[-1]) > float(ema200.iloc[-1]) if len(ema200) else True
+    vwap, _, _ = _compute_session_vwap(ltf_candles)
+    above_vwap = entry > vwap if vwap > 0 else above_200
+
+    # Trend context for exit policy (spec: weak vs high-confidence)
+    confirmations = list(signal.confirmations)
+    strength = signal.strength
+    if signal.direction == TradeDirection.LONG:
+        if above_200 or above_vwap:
+            confirmations.append("uptrend_context")
+            strength += 0.07
+        else:
+            confirmations.append("counter_trend_fast_exit")
+    else:
+        if (not above_200) or (vwap > 0 and entry < vwap):
+            confirmations.append("downtrend_context")
+            strength += 0.07
+        else:
+            confirmations.append("counter_trend_fast_exit")
+
+    support = float(htf_df["low"].tail(20).min())
+    resistance = float(htf_df["high"].tail(20).max())
+    ltf_range = float(ltf_df["high"].tail(14).max()) - float(ltf_df["low"].tail(14).min())
+    ltf_aligned = (
+        (signal.direction == TradeDirection.LONG and ltf_trend == Trend.UPTREND)
+        or (signal.direction == TradeDirection.SHORT and ltf_trend == Trend.DOWNTREND)
+    )
+    if ltf_aligned:
+        confirmations.append("ltf_aligned")
+        strength += 0.05
+
+    bias_source = (
+        f"Quad stoch div {signal.direction.value} | "
+        f"S1 price={signal.stage1_price:.2f} K={signal.stage1_stoch:.1f} | "
+        f"S2 price={signal.stage2_price:.2f} K={signal.stage2_stoch:.1f} | "
+        f"entry={entry:.2f} SL={stop_loss:.2f}"
+    )
+
+    return TechnicalContext(
+        htf_trend=htf_trend,
+        ltf_trend=ltf_trend,
+        above_200ema=above_200,
+        support=support,
+        resistance=resistance,
+        ltf_aligned=ltf_aligned,
+        entry=entry,
+        stop_loss=stop_loss,
+        tp1=tp1,
+        tp2=tp2,
+        rr_ratio=rr,
+        direction=signal.direction,
+        bias_source=bias_source,
+        signal_strength=min(1.0, strength),
+        setup_type=SetupType.QUAD_STOCH_DIV,
+        confirmations=confirmations,
+        ltf_range=ltf_range,
+    )
+
+
 def analyze_technical(
     htf_candles: list[OHLCV],
     ltf_candles: list[OHLCV],
@@ -647,26 +1093,24 @@ def analyze_technical(
     scalp_min_rr: float = 1.2,
     scalp_max_sl_pct: float = 0.35,
     scalp_min_confirmations: int = 1,
-    active_strategy: str = "stacked_sweep",
+    active_strategy: str = "quad_stoch_div",
     day_type: str = "unknown",
     allowed_direction: TradeDirection | None = None,
 ) -> TechnicalContext | None:
-    """Route to the correct strategy based on day type.
+    """Route to the correct strategy based on day type / active_strategy.
 
-    Day type routing:
-      V-Reversal Bull/Bear → stacked_sweep  (reversal at liquidity levels)
+    Default strategy: quad_stoch_div (Holy Grail / HPS divergence).
+
+    Day type routing (still overrides on breakout days):
       Trend Up/Down, Gap days → bb_orb_breakout  (momentum breakout)
-      Range/Inside → None  (day gate blocks before we get here)
-      Unknown → stacked_sweep  (default, fail open)
 
-    active_strategy='auto' (default) uses day_type routing.
-    active_strategy='stacked_sweep' or 'bb_orb_breakout' forces that strategy.
+    Force a strategy with active_strategy=
+      'quad_stoch_div' | 'stacked_sweep' | 'bb_orb_breakout' | 'vwap_pullback'
     """
     if len(htf_candles) < 20 or len(ltf_candles) < 20:
         return None
 
     # ── Determine which strategy to run ──────────────────────────────────────
-    _REVERSAL_TYPES = {"v_reversal_bull", "v_reversal_bear", "unknown"}
     _BREAKOUT_TYPES = {"trend_up", "trend_down", "gap_up_trend", "gap_down_trend", "gap_down_rally"}
 
     if active_strategy == "bb_orb_breakout" or day_type in _BREAKOUT_TYPES:
@@ -687,11 +1131,19 @@ def analyze_technical(
             allowed_direction=allowed_direction,
         )
 
-    # Default: stacked_sweep for reversal days and unknown
-    return _analyze_stacked_sweep(
+    if active_strategy == "stacked_sweep":
+        return _analyze_stacked_sweep(
+            htf_candles, ltf_candles,
+            min_rr=scalp_min_rr,
+            max_sl_pct=scalp_max_sl_pct,
+        )
+
+    # Default: quad stochastic divergence
+    return _analyze_quad_stoch_div(
         htf_candles, ltf_candles,
         min_rr=scalp_min_rr,
         max_sl_pct=scalp_max_sl_pct,
+        allowed_direction=allowed_direction,
     )
 
 def check_ltf_structure_break(

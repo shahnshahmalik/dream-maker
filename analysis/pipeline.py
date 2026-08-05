@@ -110,6 +110,7 @@ class AnalysisPipeline:
         is_scalp = tech.setup_type in (
             SetupType.STACKED_SWEEP,
             SetupType.VWAP_PULLBACK,
+            SetupType.QUAD_STOCH_DIV,
         )
         min_strength = self.cfg.scalp_min_signal_strength if is_scalp else self.cfg.min_signal_strength
         required_rr = self.cfg.scalp_min_rr_ratio if is_scalp else self.cfg.min_rr_ratio
